@@ -1,52 +1,39 @@
 # Codex Usage Status
 
-An unofficial macOS menu-bar companion for viewing Codex usage at a glance. It adds a compact quota badge, a hover card with reset times and remaining reset opportunities, and an optional helper that keeps the badge open only while the ChatGPT desktop app is running.
+轻量级 macOS 原生菜单栏 AI 额度看板，用于一目了然地查看 **Codex（GPT）**、**Gemini / Antigravity** 以及 **WorkBuddy / Trae / Qoder** 等本地工具的剩余额度、重置时间与签到状态。
 
-This is a community project and is not affiliated with or endorsed by OpenAI.
+> 本项目为社区开源工具，与 OpenAI、Google 及各第三方厂商无官方关联。  
+> 完整更新日志：[CHANGELOG.md](CHANGELOG.md) ｜ [English](#english)
 
-Recent changes / 更新记录: [CHANGELOG.md](CHANGELOG.md).
+![Codex Usage Status 双栏悬浮弹窗效果图](docs/assets/hover-card-v0.2.0.png)
 
-The menu-bar badge supports **Double Ring**, **Large Readout**, and a notch-friendly **Compact Ring (7D)** style (`30pt` wide). Hover over it to open a two-column white card: Gemini / Antigravity quotas on the left, Codex 5-hour / weekly windows (plus available reset count) and optional external tool balances (WorkBuddy / Trae / Qoder) on the right. Click the badge to refresh, change the display style, open settings, or quit.
+*以上为使用虚构示例数据渲染的实机界面效果图，不含任何真实账号数据。*
 
-![Codex Usage Status menu-bar badge showing remaining 5-hour and weekly usage](docs/assets/menu-bar-badge.png)
+---
 
-![Codex Usage Status hover card with reset count, reset times, and next refresh](docs/assets/hover-card-sample.png)
+## 核心特性（中文说明）
 
-*Illustrative preview with fictional sample values; it does not show a real account's quota.*
+- **双栏白底悬浮弹窗**：鼠标停留在菜单栏图标约 `0.2s` 自动展开：
+  - **左栏（Gemini · Antigravity）**：支持最多 5 条配额桶（`5 小时`、`每周`、`Argon 每周`、`Claude/GPT 5H`、`Claude/GPT 每周`），带语义色进度条、表格式对齐百分比与重置时间；
+  - **右栏上区（Codex）**：展示可用重置次数（`availableCount`）、`5 小时` 与 `每周` 剩余百分比进度条及重置时间；
+  - **右栏下区（其他工具）**：以三列对齐方式展示 **WorkBuddy / Trae / Qoder** 剩余积分与今日签到状态；
+  - **底部通栏**：展示下次后台自动刷新时间。
+- **三种菜单栏图标样式**：点击菜单栏图标 → **Display Style** 可自由切换：
+  - **Compact Ring (7D)**（`30pt` 宽紧凑单环，专为刘海屏右侧菜单栏优化，不易被遮挡）；
+  - **Double Ring**（5H / 7D 双圆环）；
+  - **Large Readout**（大字百分比读数）。
+- **多宿主自动启停联动（可选）**：安装本地 `quota-lifecycle` 守护进程后，默认监听本机已安装的 `ChatGPT.app`、`Gemini.app`、`Antigravity.app`——**任意一个在运行即保持显示，三者全部退出后自动关闭**。
+- **隐私与安全边界**（详见 [PRIVACY.md](PRIVACY.md) 与 [SECURITY.md](SECURITY.md)）：
+  - Codex 数据仅通过官方本地 `codex app-server` 的 `account/rateLimits/read` 方法读取；
+  - 应用本身不读取任何凭据文件、Keychain、浏览器 Cookie 或 OAuth Token，不修改官方应用包，也不上传任何遥测数据。
 
-The reset count is the separate number of reset credits reported by Codex (`rateLimitResetCredits.availableCount`). It is not another usage percentage and may be unavailable if Codex does not return it.
+## 环境要求
 
-## Privacy and safety
+- macOS 13 或更高版本
+- 已安装 ChatGPT 桌面端（`/Applications/ChatGPT.app`）或独立版 Codex（`/Applications/Codex.app`）
+- 从源码构建或安装联动助手需 Xcode Command Line Tools（Swift）、Node.js 20+ 与 Python 3
 
-- Usage comes from the local Codex app-server method `account/rateLimits/read`.
-- The app does not read Codex credential files, browser cookies, sessions, OAuth credentials, or API keys.
-- The optional lifecycle helper watches macOS's running-app list and matches the configured ChatGPT app bundle path. It does not inspect chat content or screenshots.
-- This project does not upload usage data or send telemetry to its maintainers.
-- It does not change usage limits or modify the ChatGPT or Codex app bundles.
-
-See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for details. This app depends on a local app-server interface and app bundle paths that may change in future ChatGPT or Codex releases.
-
-## Requirements
-
-- macOS 13 or later
-- ChatGPT desktop installed at `/Applications/ChatGPT.app` to use the automatic start/quit helper
-- The Codex executable bundled with ChatGPT, or a standalone Codex app at `/Applications/Codex.app`
-- Swift toolchain / Xcode Command Line Tools and Python 3 to install the optional lifecycle helper
-- Swift toolchain / Xcode Command Line Tools and Node.js 20 or later to build from source or run the JavaScript tests
-
-If Codex is installed at a different path, set `CODEX_BIN` in the app's launch environment or pass `--codex-bin` to the lifecycle installer. The app checks the default ChatGPT and Codex locations when no override is set.
-
-## Download a macOS app
-
-Download the ZIP for Apple Silicon (`arm64`) or Intel (`x86_64`) from [GitHub Releases](https://github.com/Serendipity-Y/codex-usage-status/releases), unzip it, and move `CodexUsageStatus.app` to `/Applications`. Open the app to show its menu-bar badge. Optional checksum verification instructions are in the release notes.
-
-The downloads are ad-hoc signed, without a Developer ID signature or Apple notarization. Gatekeeper may block a downloaded app. Building from source remains available using the steps below.
-
-The download contains the menu-bar app only. The optional ChatGPT start/quit helper requires the source repository, Python 3, and Xcode Command Line Tools; see [Optional ChatGPT start/quit behavior](#optional-chatgpt-startquit-behavior).
-
-## Quick start from source
-
-Clone the repository and run the installer from its root:
+## 从源码构建与安装
 
 ```sh
 git clone https://github.com/Serendipity-Y/codex-usage-status.git
@@ -54,9 +41,7 @@ cd codex-usage-status
 npm run install:macos
 ```
 
-The installer builds the app, quits any running `CodexUsageStatus` process, replaces `/Applications/CodexUsageStatus.app`, and opens the new app. To build without installing, use `npm run build:macos`.
-
-## Development checks
+常用开发与校验命令：
 
 ```sh
 npm test
@@ -64,22 +49,16 @@ swift test --package-path macos/CodexUsageStatus
 npm run build:macos
 ```
 
-The app is menu-bar-only and does not appear in the Dock. To run it manually, open `CodexUsageStatus.app` from `/Applications`. On Apple Silicon the build script selects `arm64`; on Intel it selects `x86_64`. Override with `BUILD_ARCH=arm64` or `BUILD_ARCH=x86_64`.
+## 可选：多宿主自动启停联动（ChatGPT / Gemini / Antigravity）
 
-Local builds are ad-hoc signed. macOS may show a Gatekeeper warning for an app built or downloaded without Developer ID signing and notarization.
-
-## Optional ChatGPT start/quit behavior
-
-After installing the app in `/Applications`, obtain this source repository and install the per-user background listener from the repository root. This compiles the helper and requires Python 3 and Xcode Command Line Tools:
+安装后将在登录时后台运行轻量监听进程，只在指定应用运行时显示菜单栏圆环：
 
 ```sh
 python3 lifecycle/install.py install
 python3 lifecycle/install.py check
 ```
 
-By default it watches installed `/Applications/ChatGPT.app`, `/Applications/Gemini.app`, and `/Applications/Antigravity.app`, launches `/Applications/CodexUsageStatus.app` when any of them starts, and quits the badge only after all configured host apps exit. Closing a window does not quit the app while its process remains running. The listener starts at user login, but the quota badge only starts when at least one host app is running.
-
-To specify custom host apps (repeat `--host-app` for multiple apps):
+如需自定义监听应用路径（可重复传入 `--host-app`）：
 
 ```sh
 python3 lifecycle/install.py install \
@@ -90,18 +69,18 @@ python3 lifecycle/install.py install \
   --codex-bin "/path/to/codex"
 ```
 
-Disable the listener with `python3 lifecycle/install.py disable`. This leaves the quota app installed so it can be started manually.
+停用联动监听：`python3 lifecycle/install.py disable`。
 
-## Optional Gemini & external tool adapter
+## 可选：接入 Gemini 与其他工具数据源
 
-The hover card's left column (Gemini) and bottom-right card (WorkBuddy / Trae / Qoder) read from a user-supplied local source without touching credentials, Keychain, or browser cookies inside the app. Resolution order:
+悬浮窗左栏（Gemini）与右栏下区（WorkBuddy / Trae / Qoder）支持通过用户自主配置的本地数据源并发独立刷新，解析优先级如下：
 
-1. `GEMINI_QUOTA_COMMAND` environment variable (executable printing JSON to stdout)
-2. `GEMINI_QUOTA_FILE` environment variable (local JSON file)
-3. Default local file: `~/Library/Application Support/CodexUsageStatus/gemini-quota.json`
-4. Default executable adapter: `~/Library/Application Support/CodexUsageStatus/bin/fetch-gemini-quota.py`
+1. 环境变量 `GEMINI_QUOTA_COMMAND`（指向本机可执行脚本，stdout 输出 JSON）
+2. 环境变量 `GEMINI_QUOTA_FILE`（指向本机 JSON 文件）
+3. 默认本地快照文件：`~/Library/Application Support/CodexUsageStatus/gemini-quota.json`
+4. 默认本地采集脚本：`~/Library/Application Support/CodexUsageStatus/bin/fetch-gemini-quota.py`
 
-Example JSON payload:
+JSON 数据协议示例：
 
 ```json
 {
@@ -110,64 +89,33 @@ Example JSON payload:
     { "id": "gemini-5h", "label": "5 小时", "remainingPercent": 82, "resetsAt": 1795435200 }
   ],
   "extraProviders": [
-    { "id": "workbuddy", "name": "WorkBuddy", "valueText": "1,250 积分", "statusText": "今日已签 · 10:00" }
+    { "id": "workbuddy", "name": "WorkBuddy", "valueText": "2,500 积分", "statusText": "今日已签 · 10:00" }
   ]
 }
 ```
 
-## CLI probe
+## 常见问题排查
 
-The CLI uses the same local usage source and can help diagnose app-server responses:
-
-```sh
-CODEX_BIN="/path/to/codex" npm run usage
-CODEX_BIN="/path/to/codex" npm run usage:json
-```
-
-## Package builds
-
-```sh
-npm run package:macos
-npm run package:macos:all
-```
-
-The first command creates a ZIP for the current Mac architecture. The second creates architecture-specific Apple Silicon and Intel ZIPs plus `SHA256SUMS.txt` in `dist/`. These commands package the app; they do not publish a GitHub release.
-
-## Troubleshooting
-
-- **Question marks after a refresh failure:** The card retains the last successful snapshot and shows the error category and last-success time. Automatic retries wait 60 seconds after the first failure, 120 after the second, and 300 thereafter. A successful read returns to the normal refresh interval. Click **Refresh** for a manual retry or **Settings...** for more detail.
-- **Investigating recurring failures:** Read the local refresh diagnostics (fixed categories and retry timings; no raw account data):
-
+- **菜单栏看不到图标**：本应用为纯菜单栏应用（无 Dock 图标）。如使用刘海屏 MacBook 且右侧图标较多，可切换到 `Compact Ring (7D)` 紧凑单环模式，或按住 `⌘` 将图标拖至更靠右位置。
+- **刷新失败显示问号**：悬浮卡片会保留上次成功的数据并提示失败原因与重试时间（失败退避 `60s / 120s / 300s`）。查看本机诊断日志：
   ```sh
   /usr/bin/log show --last 30m --style compact --predicate 'subsystem == "io.github.codexusagestatus" AND category == "refresh"'
   ```
 
-- **No menu-bar badge:** The app is menu-bar-only and has no Dock icon. Check the menu-bar area, or open `CodexUsageStatus.app` from `/Applications` to start it again.
-- **No usage data:** Confirm the configured Codex executable exists and can start `app-server`. The CLI probe can check the local response; set `CODEX_BIN` when using a non-default executable:
+---
 
+## English
+
+An unofficial native macOS menu-bar companion for viewing **Codex**, **Gemini / Antigravity**, and optional external tool balances (**WorkBuddy / Trae / Qoder**) at a glance.
+
+- **Two-column hover card**: Left column shows up to 5 Gemini / Antigravity quota buckets with progress bars and reset times; right column shows Codex 5-hour / weekly windows (with available reset count) and tabular credit balances for WorkBuddy / Trae / Qoder.
+- **Display styles**: Switch between **Compact Ring (7D)** (`30pt` notch-friendly single ring), **Double Ring**, and **Large Readout**.
+- **Privacy & safety**: Codex usage comes exclusively from local `codex app-server` (`account/rateLimits/read`). The app itself never reads credential files, browser cookies, Keychain items, or OAuth tokens. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
+- **Multi-host lifecycle helper**: Optional per-user listener (`lifecycle/install.py`) keeps the badge running while any configured host app (`ChatGPT.app`, `Gemini.app`, `Antigravity.app`) is active and quits cleanly once all exit.
+- **Build & test**:
   ```sh
-  CODEX_BIN="/path/to/codex" npm run usage:json
+  npm test
+  swift test --package-path macos/CodexUsageStatus
+  npm run build:macos
   ```
-
-  The output contains your usage information, so review it before sharing publicly.
-- **ChatGPT does not start or stop the badge:** Run `python3 lifecycle/install.py check` from the repository root and verify the saved app paths. Lifecycle logs are under `~/Library/Logs/CodexUsageStatusLifecycle/`; see [lifecycle instructions](lifecycle/README.md).
-
-## Uninstall
-
-If the lifecycle helper is enabled, disable it first:
-
-```sh
-python3 lifecycle/install.py disable
-```
-
-Then quit the badge from its menu and move `/Applications/CodexUsageStatus.app` to the Trash. Disabling the helper stops automatic start/quit behavior but preserves its LaunchAgent configuration, helper program, and logs. To remove those files too, delete:
-
-- `~/Library/LaunchAgents/io.github.codexusagestatus.chatgpt-lifecycle.plist`
-- `~/Library/Application Support/CodexUsageStatusLifecycle/`
-- `~/Library/Logs/CodexUsageStatusLifecycle/` (optional; contains local diagnostic logs)
-
-If you installed the app or ChatGPT in a custom location, remove the app from the location you selected.
-
-## Upstream
-
-This repository is derived from [tollenceld/codex-usage-status](https://github.com/tollenceld/codex-usage-status). See [UPSTREAM.md](UPSTREAM.md) for the base revision and a summary of changes. The upstream MIT license and notice are retained.
+- **Downloads & releases**: Pre-built ad-hoc signed ZIPs (`arm64` / `x86_64`) are published on [GitHub Releases](https://github.com/Serendipity-Y/codex-usage-status/releases). See [CHANGELOG.md](CHANGELOG.md) for version history.
