@@ -47,9 +47,18 @@ class LifecycleTests(unittest.TestCase):
         cls.helper = cls.base / "quota-lifecycle"
         subprocess.run(["swiftc", "-O", "-framework", "AppKit", str(ROOT / "lifecycle/QuotaLifecycle.swift"), "-o", str(cls.helper)], check=True)
         cls.host = cls.make_app("Host")
+        cls.host2 = cls.make_app("HostTwo")
+        cls.host3 = cls.make_app("HostThree")
         cls.quota = cls.make_app("Quota")
         cls.other = cls.make_app("Other")
-        cls.args = [str(cls.helper), "--host-app", str(cls.host), "--quota-app", str(cls.quota), "--codex-bin", "/usr/bin/true"]
+        cls.args = [
+            str(cls.helper),
+            "--host-app", str(cls.host),
+            "--host-app", str(cls.host2),
+            "--host-app", str(cls.host3),
+            "--quota-app", str(cls.quota),
+            "--codex-bin", "/usr/bin/true",
+        ]
 
     @classmethod
     def make_app(cls, name):
@@ -156,6 +165,31 @@ class LifecycleTests(unittest.TestCase):
         self.await_state(lambda s: not s["quotaPIDs"])
         time.sleep(0.5)
         self.assertFalse(self.state()["quotaPIDs"])
+
+    def test_multiple_hosts_keep_quota_alive_until_all_exit(self):
+        self.start_listener()
+        self.assertFalse(self.state()["quotaPIDs"])
+
+        # Any single host starts the quota app.
+        self.launch(self.host2)
+        started = self.await_state(lambda s: len(s["hostPIDs"]) == 1 and len(s["quotaPIDs"]) == 1)
+
+        # Launching a second and third host keeps the same quota instance.
+        self.launch(self.host3)
+        self.await_state(lambda s: len(s["hostPIDs"]) == 2)
+        time.sleep(0.4)
+        self.assertEqual(self.state()["quotaPIDs"], started["quotaPIDs"])
+
+        # Stopping host2 while host3 is still running must keep quota alive.
+        pids_before = self.state()["hostPIDs"]
+        self.stop([pids_before[0]])
+        self.await_state(lambda s: len(s["hostPIDs"]) == 1)
+        time.sleep(0.5)
+        self.assertEqual(self.state()["quotaPIDs"], started["quotaPIDs"], "Remaining host must keep quota alive")
+
+        # Stopping the last remaining host must quit quota.
+        self.stop(self.state()["hostPIDs"])
+        self.await_state(lambda s: not s["hostPIDs"] and not s["quotaPIDs"])
 
 
 if __name__ == "__main__":

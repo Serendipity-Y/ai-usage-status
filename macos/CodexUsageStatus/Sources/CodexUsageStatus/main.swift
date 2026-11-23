@@ -6,6 +6,9 @@ if CommandLine.arguments.contains("--once") {
         let usage = try CodexUsageFetcher.fetchSync()
         print(usage.menuTitle)
         print("Available resets: \(usage.availableResetCount.map(String.init) ?? "unknown")")
+        if let gemini = try? GeminiUsageFetcher.fetchSync() {
+            print("Gemini: \(gemini.cliSummary)")
+        }
         exit(0)
     } catch {
         fputs("\(error.localizedDescription)\n", stderr)

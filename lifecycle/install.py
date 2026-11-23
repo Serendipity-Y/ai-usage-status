@@ -24,20 +24,49 @@ def unload():
         run("launchctl", "bootout", f"{DOMAIN}/{LABEL}")
 
 
-def default_codex_path(host):
+DEFAULT_HOST_APPS = [
+    "/Applications/ChatGPT.app",
+    "/Applications/Gemini.app",
+    "/Applications/Antigravity.app",
+]
+
+
+def default_codex_path(hosts):
     candidates = [
-        host / "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+        host / "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+        for host in hosts
+    ] + [
+        Path("/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"),
         Path("/Applications/Codex.app/Contents/Resources/codex"),
     ]
     return next((path for path in candidates if os.access(path, os.X_OK)), candidates[0])
 
 
-def install(host_app=None, quota_app=None, codex_bin=None):
-    host = Path(host_app or os.environ.get("CODEX_USAGE_HOST_APP", "/Applications/ChatGPT.app")).expanduser().resolve()
+def resolve_host_apps(host_apps=None):
+    if host_apps:
+        raw = host_apps
+    elif os.environ.get("CODEX_USAGE_HOST_APPS"):
+        raw = [p for p in os.environ["CODEX_USAGE_HOST_APPS"].split(":") if p.strip()]
+    elif os.environ.get("CODEX_USAGE_HOST_APP"):
+        raw = [os.environ["CODEX_USAGE_HOST_APP"]]
+    else:
+        raw = [p for p in DEFAULT_HOST_APPS if Path(p).is_dir()] or [DEFAULT_HOST_APPS[0]]
+    seen = set()
+    resolved = []
+    for item in raw:
+        path = Path(item).expanduser().resolve()
+        if path not in seen:
+            seen.add(path)
+            resolved.append(path)
+    return resolved
+
+
+def install(host_apps=None, quota_app=None, codex_bin=None):
+    hosts = resolve_host_apps(host_apps)
     quota = Path(quota_app or os.environ.get("CODEX_USAGE_QUOTA_APP", "/Applications/CodexUsageStatus.app")).expanduser().resolve()
-    codex = Path(codex_bin or os.environ.get("CODEX_BIN") or default_codex_path(host)).expanduser().resolve()
-    if not host.is_dir() or not quota.is_dir() or not os.access(codex, os.X_OK):
-        raise RuntimeError("ChatGPT, quota app, or Codex executable missing")
+    codex = Path(codex_bin or os.environ.get("CODEX_BIN") or default_codex_path(hosts)).expanduser().resolve()
+    if not hosts or not all(host.is_dir() for host in hosts) or not quota.is_dir() or not os.access(codex, os.X_OK):
+        raise RuntimeError("Host app(s), quota app, or Codex executable missing")
     build = ROOT / "build/quota-lifecycle"
     build.parent.mkdir(parents=True, exist_ok=True)
     run("swiftc", "-O", "-framework", "AppKit", str(ROOT / "lifecycle/QuotaLifecycle.swift"), "-o", str(build))
@@ -51,9 +80,11 @@ def install(host_app=None, quota_app=None, codex_bin=None):
     shutil.copy2(build, temporary_helper)
     temporary_helper.chmod(0o700)
     temporary_helper.replace(helper)
+    host_args = [arg for host in hosts for arg in ("--host-app", str(host))]
+    program_args = [str(helper), *host_args, "--quota-app", str(quota), "--codex-bin", str(codex)]
     config = {
         "Label": LABEL,
-        "ProgramArguments": [str(helper), "--host-app", str(host), "--quota-app", str(quota), "--codex-bin", str(codex)],
+        "ProgramArguments": program_args,
         "RunAtLoad": True,
         "KeepAlive": True,
         "ThrottleInterval": 10,
@@ -71,7 +102,7 @@ def install(host_app=None, quota_app=None, codex_bin=None):
     run("launchctl", "enable", f"{DOMAIN}/{LABEL}")
     run("launchctl", "bootstrap", DOMAIN, str(PLIST))
     print(f"Enabled: {PLIST}")
-    print(run(str(helper), "--host-app", str(host), "--quota-app", str(quota), "--codex-bin", str(codex), "--check").stdout.strip())
+    print(run(*program_args, "--check").stdout.strip())
 
 
 def check():
@@ -97,7 +128,7 @@ def disable():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=["install", "disable", "check"], default="install", nargs="?")
-    parser.add_argument("--host-app", help="ChatGPT app bundle path (default: /Applications/ChatGPT.app)")
+    parser.add_argument("--host-app", action="append", help="Host app bundle path; repeat for multiple apps (default: installed ChatGPT, Gemini, Antigravity)")
     parser.add_argument("--quota-app", help="quota app bundle path (default: /Applications/CodexUsageStatus.app)")
     parser.add_argument("--codex-bin", help="Codex executable path (defaults to ChatGPT's bundled Codex, then /Applications/Codex.app)")
     arguments = parser.parse_args()

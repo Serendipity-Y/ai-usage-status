@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let displayStyleMenu = NSMenu()
     private let doubleRingItem = NSMenuItem(title: BadgeStyle.doubleRing.menuTitle, action: #selector(selectDoubleRingStyle), keyEquivalent: "")
     private let largeReadoutItem = NSMenuItem(title: BadgeStyle.largeReadout.menuTitle, action: #selector(selectLargeReadoutStyle), keyEquivalent: "")
+    private let compactRingItem = NSMenuItem(title: BadgeStyle.compactRing.menuTitle, action: #selector(selectCompactRingStyle), keyEquivalent: "")
     private let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
 
     private var timer: Timer?
@@ -23,6 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lastUsage: UsageSummary?
     private var lastRefreshDate: Date?
     private var lastError: Error?
+    private var lastGeminiUsage: GeminiUsageSummary?
+    private var lastGeminiRefreshDate: Date?
+    private var lastGeminiError: GeminiFetchError? = .notConfigured
     private var nextRefreshDate: Date?
     private var buttonTrackingArea: NSTrackingArea?
     private var hoverShowWork: DispatchWorkItem?
@@ -75,8 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         doubleRingItem.target = self
         largeReadoutItem.target = self
+        compactRingItem.target = self
         displayStyleMenu.addItem(doubleRingItem)
         displayStyleMenu.addItem(largeReadoutItem)
+        displayStyleMenu.addItem(compactRingItem)
         displayStyleItem.submenu = displayStyleMenu
         menu.addItem(displayStyleItem)
         updateStyleMenuState()
@@ -145,9 +151,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateHoverCard() {
-        hoverCard.update(HoverPresentation(usage: lastUsage, nextRefreshDate: nextRefreshDate,
-            lastRefreshDate: lastRefreshDate, isRefreshing: isRefreshing, refreshFailed: lastError != nil,
-            failureDescription: (lastError as? FetchError)?.briefDescription ?? "读取失败"))
+        hoverCard.update(HoverPresentation(
+            usage: lastUsage,
+            nextRefreshDate: nextRefreshDate,
+            lastRefreshDate: lastRefreshDate,
+            isRefreshing: isRefreshing,
+            refreshFailed: lastError != nil,
+            failureDescription: (lastError as? FetchError)?.briefDescription ?? "读取失败",
+            geminiUsage: lastGeminiUsage,
+            geminiLastRefreshDate: lastGeminiRefreshDate,
+            geminiError: lastGeminiError
+        ))
         hoverPopover.contentSize = hoverCard.preferredContentSize
     }
 
@@ -171,6 +185,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setBadgeStyle(.largeReadout)
     }
 
+    @objc private func selectCompactRingStyle() {
+        setBadgeStyle(.compactRing)
+    }
+
     @objc private func showSettings() {
         let status: String
         if let lastError {
@@ -182,14 +200,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         let lastRefresh = lastRefreshDate.map { dateFormatter.string(from: $0) } ?? "Never"
+        let geminiSource = GeminiUsageFetcher.resolvedSource().displayDescription
+        let geminiStatus: String
+        if let lastGeminiUsage {
+            geminiStatus = lastGeminiUsage.cliSummary
+        } else if let lastGeminiError {
+            geminiStatus = lastGeminiError.briefDescription
+        } else {
+            geminiStatus = "Waiting for first refresh"
+        }
         let message = """
         \(status)
+        Gemini: \(geminiStatus)
 
         Display style: \(badgeStyle.menuTitle)
         Refresh interval: \(Int(refreshInterval)) seconds
         Failure retry: 60 / 120 / \(Int(AppConfig.errorRetryInterval)) seconds
         Last refresh: \(lastRefresh)
-        Data source: local Codex app-server
+        Codex source: local Codex app-server
+        Gemini source: \(geminiSource)
         """
 
         let alert = NSAlert()
@@ -212,6 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateStyleMenuState() {
         doubleRingItem.state = badgeStyle == .doubleRing ? .on : .off
         largeReadoutItem.state = badgeStyle == .largeReadout ? .on : .off
+        compactRingItem.state = badgeStyle == .compactRing ? .on : .off
     }
 
     private func refresh() {
@@ -232,21 +262,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 return
             }
 
-            do {
-                let usage = try await CodexUsageFetcher.fetch()
-                self.isRefreshing = false
-                self.refreshItem.isEnabled = true
-                self.refreshItem.title = "Refresh"
+            async let codexResult: Result<UsageSummary, Error> = {
+                do {
+                    return .success(try await CodexUsageFetcher.fetch())
+                } catch {
+                    return .failure(error)
+                }
+            }()
+
+            async let geminiResult: Result<GeminiUsageSummary, GeminiFetchError> = {
+                do {
+                    return .success(try await GeminiUsageFetcher.fetch())
+                } catch let error as GeminiFetchError {
+                    return .failure(error)
+                } catch {
+                    return .failure(.invalidOutput)
+                }
+            }()
+
+            let (codex, gemini) = await (codexResult, geminiResult)
+
+            switch gemini {
+            case .success(let summary):
+                self.lastGeminiUsage = summary
+                self.lastGeminiRefreshDate = Date()
+                self.lastGeminiError = nil
+            case .failure(let error):
+                self.lastGeminiError = error
+                if error == .notConfigured {
+                    self.lastGeminiUsage = nil
+                } else {
+                    self.refreshLog.error("Gemini usage refresh failed: \(error.briefDescription, privacy: .public)")
+                }
+            }
+
+            self.isRefreshing = false
+            self.refreshItem.isEnabled = true
+            self.refreshItem.title = "Refresh"
+
+            switch codex {
+            case .success(let usage):
                 if self.consecutiveFailures > 0 {
                     self.refreshLog.notice("Usage refresh recovered after \(self.consecutiveFailures) failures")
                 }
                 self.consecutiveFailures = 0
                 self.applyUsage(usage)
                 self.scheduleNextRefresh(after: self.refreshInterval)
-            } catch {
-                self.isRefreshing = false
-                self.refreshItem.isEnabled = true
-                self.refreshItem.title = "Refresh"
+            case .failure(let error):
                 self.consecutiveFailures += 1
                 let retry = AppConfig.retryInterval(afterFailures: self.consecutiveFailures)
                 let reason = (error as? FetchError)?.briefDescription ?? "读取失败"

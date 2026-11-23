@@ -2,12 +2,13 @@ import AppKit
 import Foundation
 
 struct Configuration {
-    let host: URL
+    let hosts: [URL]
     let quota: URL
     let codex: String
     let checkOnly: Bool
 
     init() throws {
+        var hostPaths: [String] = []
         var options: [String: String] = [:]
         var args = Array(CommandLine.arguments.dropFirst())
         checkOnly = args.contains("--check")
@@ -18,22 +19,41 @@ struct Configuration {
                 throw NSError(domain: "QuotaLifecycle", code: 1,
                     userInfo: [NSLocalizedDescriptionKey: "Invalid arguments"])
             }
-            options[key] = args.removeFirst()
+            let value = args.removeFirst()
+            if key == "--host-app" {
+                hostPaths.append(value)
+            } else {
+                options[key] = value
+            }
         }
-        host = URL(fileURLWithPath: options["--host-app"] ?? "/Applications/ChatGPT.app").resolvingSymlinksInPath()
+        if hostPaths.isEmpty {
+            hostPaths = ["/Applications/ChatGPT.app"]
+        }
+        var seen = Set<URL>()
+        hosts = hostPaths
+            .map { URL(fileURLWithPath: $0).resolvingSymlinksInPath() }
+            .filter { seen.insert($0).inserted }
         quota = URL(fileURLWithPath: options["--quota-app"] ?? "/Applications/CodexUsageStatus.app").resolvingSymlinksInPath()
         codex = options["--codex-bin"] ?? "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
-        guard host != quota else {
+        guard !hosts.contains(quota) else {
             throw NSError(domain: "QuotaLifecycle", code: 2,
                 userInfo: [NSLocalizedDescriptionKey: "Host and quota app must differ"])
         }
     }
 }
 
-func applications(at url: URL) -> [NSRunningApplication] {
-    NSWorkspace.shared.runningApplications.filter {
-        !$0.isTerminated && $0.bundleURL?.resolvingSymlinksInPath() == url
+func applications(at urls: [URL]) -> [NSRunningApplication] {
+    let targets = Set(urls)
+    return NSWorkspace.shared.runningApplications.filter {
+        guard !$0.isTerminated, let bundleURL = $0.bundleURL?.resolvingSymlinksInPath() else {
+            return false
+        }
+        return targets.contains(bundleURL)
     }
+}
+
+func applications(at url: URL) -> [NSRunningApplication] {
+    applications(at: [url])
 }
 
 func log(_ message: String) {
@@ -68,16 +88,19 @@ final class Lifecycle {
     }
 
     private func reconcile() {
-        let hosts = Set(applications(at: configuration.host).map { $0.processIdentifier })
+        let hosts = Set(applications(at: configuration.hosts).map { $0.processIdentifier })
         if hosts.isEmpty {
             if lastHostPIDs != hosts { log("host stopped") }
             lastHostPIDs = hosts
             stopQuota()
             return
         }
-        // Quota/manual quits and unrelated apps do not restart the quota app.
-        guard lastHostPIDs != hosts else { return }
+        let previousHosts = lastHostPIDs
         lastHostPIDs = hosts
+        // Only launch on initial sync or when a new host instance appears;
+        // manual quota quits and one host exiting while another remains must not relaunch quota.
+        let hasNewHost = previousHosts == nil || !hosts.subtracting(previousHosts ?? []).isEmpty
+        guard hasNewHost else { return }
         log("host running")
         guard applications(at: configuration.quota).isEmpty, !launching else {
             log("quota already running or starting")
@@ -103,7 +126,7 @@ final class Lifecycle {
                 }
                 log("quota started pid=\(app?.processIdentifier ?? 0)")
                 // A host exit can arrive while LaunchServices is opening the app.
-                if applications(at: self.configuration.host).isEmpty { self.stopQuota() }
+                if applications(at: self.configuration.hosts).isEmpty { self.stopQuota() }
             }
         }
     }
@@ -119,7 +142,8 @@ do {
     let config = try Configuration()
     if config.checkOnly {
         let state: [String: Any] = [
-            "hostPIDs": applications(at: config.host).map { Int($0.processIdentifier) },
+            "hostApps": config.hosts.map(\.path),
+            "hostPIDs": applications(at: config.hosts).map { Int($0.processIdentifier) },
             "quotaPIDs": applications(at: config.quota).map { Int($0.processIdentifier) },
             "codexExecutableExists": FileManager.default.isExecutableFile(atPath: config.codex)
         ]

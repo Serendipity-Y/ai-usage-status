@@ -6,7 +6,7 @@ This is a community project and is not affiliated with or endorsed by OpenAI.
 
 Recent changes / 更新记录: [CHANGELOG.md](CHANGELOG.md).
 
-The menu-bar badge shows the remaining 5-hour and weekly usage percentages. Hover over it to see the available reset count, 5-hour and weekly reset times, and the next data refresh. Click the badge to refresh, change the display style, open settings, or quit.
+The menu-bar badge supports **Double Ring**, **Large Readout**, and a notch-friendly **Compact Ring (7D)** style (`30pt` wide). Hover over it to open a two-column white card: Gemini / Antigravity quotas on the left, Codex 5-hour / weekly windows (plus available reset count) and optional external tool balances (WorkBuddy / Trae / Qoder) on the right. Click the badge to refresh, change the display style, open settings, or quit.
 
 ![Codex Usage Status menu-bar badge showing remaining 5-hour and weekly usage](docs/assets/menu-bar-badge.png)
 
@@ -77,18 +77,43 @@ python3 lifecycle/install.py install
 python3 lifecycle/install.py check
 ```
 
-By default it watches `/Applications/ChatGPT.app`, launches `/Applications/CodexUsageStatus.app` when ChatGPT starts, and quits the badge after the last ChatGPT process exits. Closing a ChatGPT window does not quit the app while its process remains running. The listener starts at user login, but the quota badge only starts when ChatGPT is running.
+By default it watches installed `/Applications/ChatGPT.app`, `/Applications/Gemini.app`, and `/Applications/Antigravity.app`, launches `/Applications/CodexUsageStatus.app` when any of them starts, and quits the badge only after all configured host apps exit. Closing a window does not quit the app while its process remains running. The listener starts at user login, but the quota badge only starts when at least one host app is running.
 
-To use non-default locations:
+To specify custom host apps (repeat `--host-app` for multiple apps):
 
 ```sh
 python3 lifecycle/install.py install \
   --host-app "/Applications/ChatGPT.app" \
+  --host-app "/Applications/Gemini.app" \
+  --host-app "/Applications/Antigravity.app" \
   --quota-app "/Applications/CodexUsageStatus.app" \
   --codex-bin "/path/to/codex"
 ```
 
 Disable the listener with `python3 lifecycle/install.py disable`. This leaves the quota app installed so it can be started manually.
+
+## Optional Gemini & external tool adapter
+
+The hover card's left column (Gemini) and bottom-right card (WorkBuddy / Trae / Qoder) read from a user-supplied local source without touching credentials, Keychain, or browser cookies inside the app. Resolution order:
+
+1. `GEMINI_QUOTA_COMMAND` environment variable (executable printing JSON to stdout)
+2. `GEMINI_QUOTA_FILE` environment variable (local JSON file)
+3. Default local file: `~/Library/Application Support/CodexUsageStatus/gemini-quota.json`
+4. Default executable adapter: `~/Library/Application Support/CodexUsageStatus/bin/fetch-gemini-quota.py`
+
+Example JSON payload:
+
+```json
+{
+  "plan": "Antigravity",
+  "buckets": [
+    { "id": "gemini-5h", "label": "5 小时", "remainingPercent": 82, "resetsAt": 1795435200 }
+  ],
+  "extraProviders": [
+    { "id": "workbuddy", "name": "WorkBuddy", "valueText": "1,250 积分", "statusText": "今日已签 · 10:00" }
+  ]
+}
+```
 
 ## CLI probe
 

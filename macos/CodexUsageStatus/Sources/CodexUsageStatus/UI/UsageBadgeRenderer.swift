@@ -3,6 +3,7 @@ import AppKit
 enum UsageBadgeRenderer {
     private static let doubleRingImageSize = NSSize(width: 86, height: 24)
     private static let largeReadoutImageSize = NSSize(width: 86, height: 24)
+    private static let compactRingImageSize = NSSize(width: 26, height: 24)
 
     static func statusItemLength(for style: BadgeStyle) -> CGFloat {
         switch style {
@@ -10,6 +11,8 @@ enum UsageBadgeRenderer {
             return 90
         case .largeReadout:
             return 90
+        case .compactRing:
+            return 30
         }
     }
 
@@ -50,7 +53,30 @@ enum UsageBadgeRenderer {
             return renderDoubleRing(left: left, right: right, appearance: appearance, forcedColor: forcedColor)
         case .largeReadout:
             return renderLargeReadout(left: left, right: right, appearance: appearance, forcedColor: forcedColor)
+        case .compactRing:
+            return renderCompactRing(value: right, appearance: appearance, forcedColor: forcedColor)
         }
+    }
+
+    private static func renderCompactRing(
+        value: BadgeValue,
+        appearance: NSAppearance,
+        forcedColor: NSColor?
+    ) -> NSImage {
+        let imageSize = compactRingImageSize
+        let image = NSImage(size: imageSize)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        appearance.performAsCurrentDrawingAppearance {
+            let rect = NSRect(origin: .zero, size: imageSize)
+            NSColor.clear.setFill()
+            rect.fill()
+            drawRing(value: value, center: NSPoint(x: 13, y: 12), forcedColor: forcedColor)
+        }
+
+        image.isTemplate = false
+        return image
     }
 
     private static func renderDoubleRing(

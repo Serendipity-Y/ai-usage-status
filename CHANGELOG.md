@@ -1,5 +1,23 @@
 # 更新记录 / Changelog
 
+## v0.2.0 — 2026-11-23
+
+### 中文
+
+- **双栏悬浮弹窗布局**：重构悬浮卡片为左右双栏白底设计——左栏展示 Gemini / Antigravity 全部配额桶（最多 5 行，含进度条、百分比与重置时间），右栏依次展示 Codex（5 小时 / 每周进度条与可用重置次数）以及 WorkBuddy / Trae / Qoder 剩余积分与签到状态；全卡片采用表格式列对齐与左右等高齐平排版。
+- **紧凑单环样式（Compact Ring 7D）**：新增 `30pt` 宽紧凑单环菜单栏图标，解决刘海屏右侧菜单栏空间紧张导致图标被遮挡的问题；支持在 `Display Style` 菜单中与双环 / 大字模式自由切换。
+- **合规可扩展的外部额度适配器**：新增 Gemini 及外部工具（WorkBuddy / Trae / Qoder）并发独立刷新适配器，支持通过本地 JSON 快照文件（`GEMINI_QUOTA_FILE` 或默认 `~/Library/Application Support/CodexUsageStatus/gemini-quota.json`）或用户自定义可执行命令（`GEMINI_QUOTA_COMMAND` 或默认 `bin/fetch-gemini-quota.py`）接入；不内置任何未公开服务探测、Keychain 读取或 Cookie 抓取，且外部源异常不影响 Codex 主刷新。
+- **多宿主联动启停（Lifecycle Helper）**：扩展 `QuotaLifecycle.swift` 与 `install.py` 支持多个 `--host-app`（默认自动检测本机已安装的 `ChatGPT.app`、`Gemini.app`、`Antigravity.app`）；三者任意一个运行即保持菜单栏显示，全部退出后自动关闭。
+- **测试覆盖**：新增 `GeminiFetcherTests`、更新 `HoverLayoutTests` 以及 `test_lifecycle.py` 多宿主实机联动测试。
+
+### English
+
+- **Two-column hover card layout**: Redesign the popover into a balanced side-by-side white card—left column for Gemini / Antigravity quota buckets (up to 5 rows with progress bars, remaining percentages, and reset times), right column for Codex (5-hour / weekly progress bars and reset credits) plus WorkBuddy / Trae / Qoder credit balances and check-in status—with tabular column alignment and flush bottom edges.
+- **Compact Ring (7D) display style**: Add a 30pt single-ring menu-bar style to avoid macOS notch overflow, switchable via `Display Style`.
+- **Pluggable external quota adapter**: Add concurrent, isolated refresh support for Gemini and external tools via user-supplied local JSON files (`GEMINI_QUOTA_FILE` / default `gemini-quota.json`) or local executable commands (`GEMINI_QUOTA_COMMAND` / default `bin/fetch-gemini-quota.py`). Keeps the app strictly free of built-in credential/cookie/Keychain scraping.
+- **Multi-host lifecycle helper**: Extend `QuotaLifecycle.swift` and `install.py` to accept repeatable `--host-app` arguments (defaulting to installed `ChatGPT.app`, `Gemini.app`, and `Antigravity.app`), keeping the badge alive while any configured host runs and quitting cleanly when all exit.
+- **Test coverage**: Add `GeminiFetcherTests`, update `HoverLayoutTests`, and add multi-host coverage in `test_lifecycle.py`.
+
 ## v0.1.1 — 2026-10-28
 
 本 Fork 的首个二进制发行版。既有的 `v0.1.0` 标签来自上游项目。
