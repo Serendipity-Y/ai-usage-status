@@ -147,7 +147,7 @@ struct GeminiUsageSummary: Sendable, Equatable {
             let pct = bucket.remainingPercent.map { "\($0)%" } ?? "--"
             return "\(bucket.label) \(pct)"
         }
-        let extraParts = extraProviders.prefix(3).map { tool in
+        let extraParts = extraProviders.prefix(4).map { tool in
             let val = tool.valueText ?? tool.remainingPercent.map { "\($0)%" } ?? (tool.statusText ?? "--")
             return "\(tool.name) \(val)"
         }

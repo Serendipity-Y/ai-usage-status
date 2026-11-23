@@ -91,6 +91,7 @@ struct HoverPresentation {
             ("workbuddy", "WorkBuddy"),
             ("traecn", "Trae"),
             ("qoder", "Qoder"),
+            ("agentrouter", "AgentRouter"),
         ]
         let extrasByID = Dictionary(
             uniqueKeysWithValues: (geminiUsage?.extraProviders ?? []).map { ($0.id.lowercased(), $0) }

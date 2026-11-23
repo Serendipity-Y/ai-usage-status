@@ -23,7 +23,7 @@ final class HoverCardViewController: NSViewController {
     private let geminiEmptyHint = NSTextField(labelWithString: "")
     private let geminiStatus = NSTextField(labelWithString: "")
 
-    private let extraToolRowViews = [CreditToolRowView(), CreditToolRowView(), CreditToolRowView()]
+    private let extraToolRowViews = (0..<4).map { _ in CreditToolRowView() }
 
     private let refresh = NSTextField(labelWithString: "等待首次刷新")
 
@@ -218,7 +218,7 @@ final class HoverCardViewController: NSViewController {
             row.isHidden = true
         }
 
-        return makeSectionCard(views: [header] + geminiRowViews + [geminiEmptyHint, geminiStatus], spacing: 17.5, verticalPadding: 12).0
+        return makeSectionCard(views: [header] + geminiRowViews + [geminiEmptyHint, geminiStatus], spacing: 23, verticalPadding: 12).0
     }
 
     private func makeSectionCard(views: [NSView], spacing: CGFloat, verticalPadding: CGFloat) -> (NSView, NSStackView) {
@@ -426,8 +426,8 @@ private final class CreditToolRowView: NSView {
             row.trailingAnchor.constraint(equalTo: trailingAnchor),
             row.topAnchor.constraint(equalTo: topAnchor),
             row.bottomAnchor.constraint(equalTo: bottomAnchor),
-            nameLabel.widthAnchor.constraint(equalToConstant: 72),
-            valueLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
+            nameLabel.widthAnchor.constraint(equalToConstant: 78),
+            valueLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 90),
             statusLabel.widthAnchor.constraint(equalToConstant: 92),
         ])
     }

@@ -5,7 +5,7 @@
 ### 中文
 
 - **项目更名**：GitHub 仓库与文档展示名更新为 **AI Usage Status**（`Serendipity-Y/ai-usage-status`），本机应用包与配置目录保持 `CodexUsageStatus` 以兼容现有安装。
-- **双栏悬浮弹窗布局**：重构悬浮卡片为左右双栏白底设计——左栏展示 Gemini / Antigravity 全部配额桶（最多 5 行，含进度条、百分比与重置时间），右栏依次展示 Codex（5 小时 / 每周进度条与可用重置次数）以及 WorkBuddy / Trae / Qoder 剩余积分与签到状态；全卡片采用表格式列对齐与左右等高齐平排版。
+- **双栏悬浮弹窗布局**：重构悬浮卡片为左右双栏白底设计——左栏展示 Gemini / Antigravity 全部配额桶（最多 5 行，含进度条、百分比与重置时间），右栏依次展示 Codex（5 小时 / 每周进度条与可用重置次数）以及 WorkBuddy / Trae / Qoder / AgentRouter 剩余积分/余额与签到状态；全卡片采用表格式列对齐与左右等高齐平排版。
 - **紧凑单环样式（Compact Ring 7D）**：新增 `30pt` 宽紧凑单环菜单栏图标，解决刘海屏右侧菜单栏空间紧张导致图标被遮挡的问题；支持在 `Display Style` 菜单中与双环 / 大字模式自由切换。
 - **合规可扩展的外部额度适配器**：新增 Gemini 及外部工具（WorkBuddy / Trae / Qoder）并发独立刷新适配器，支持通过本地 JSON 快照文件（`GEMINI_QUOTA_FILE` 或默认 `~/Library/Application Support/CodexUsageStatus/gemini-quota.json`）或用户自定义可执行命令（`GEMINI_QUOTA_COMMAND` 或默认 `bin/fetch-gemini-quota.py`）接入；不内置任何未公开服务探测、Keychain 读取或 Cookie 抓取，且外部源异常不影响 Codex 主刷新。
 - **多宿主联动启停（Lifecycle Helper）**：扩展 `QuotaLifecycle.swift` 与 `install.py` 支持多个 `--host-app`（默认自动检测本机已安装的 `ChatGPT.app`、`Gemini.app`、`Antigravity.app`）；三者任意一个运行即保持菜单栏显示，全部退出后自动关闭。
