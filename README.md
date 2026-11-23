@@ -1,11 +1,11 @@
-# Codex Usage Status
+# AI Usage Status
 
-轻量级 macOS 原生菜单栏 AI 额度看板，用于一目了然地查看 **Codex（GPT）**、**Gemini / Antigravity** 以及 **WorkBuddy / Trae / Qoder** 等本地工具的剩余额度、重置时间与签到状态。
+轻量级 macOS 原生菜单栏 AI 额度看板（原 `Codex Usage Status`），用于一目了然地查看 **Codex（GPT）**、**Gemini / Antigravity** 以及 **WorkBuddy / Trae / Qoder** 等本地工具的剩余额度、重置时间与签到状态。
 
-> 本项目为社区开源工具，与 OpenAI、Google 及各第三方厂商无官方关联。  
+> 本项目基于 [tollenceld/codex-usage-status](https://github.com/tollenceld/codex-usage-status) 扩展，与 OpenAI、Google 及各第三方厂商无官方关联。为保持向后兼容，本机应用包与配置目录仍沿用 `CodexUsageStatus`。  
 > 完整更新日志：[CHANGELOG.md](CHANGELOG.md) ｜ [English](#english)
 
-![Codex Usage Status 双栏悬浮弹窗效果图](docs/assets/hover-card-v0.2.0.png)
+![AI Usage Status 双栏悬浮弹窗效果图](docs/assets/hover-card-v0.2.0.png)
 
 *以上为使用虚构示例数据渲染的实机界面效果图，不含任何真实账号数据。*
 
@@ -36,8 +36,8 @@
 ## 从源码构建与安装
 
 ```sh
-git clone https://github.com/Serendipity-Y/codex-usage-status.git
-cd codex-usage-status
+git clone https://github.com/Serendipity-Y/ai-usage-status.git
+cd ai-usage-status
 npm run install:macos
 ```
 
@@ -118,4 +118,4 @@ An unofficial native macOS menu-bar companion for viewing **Codex**, **Gemini / 
   swift test --package-path macos/CodexUsageStatus
   npm run build:macos
   ```
-- **Downloads & releases**: Pre-built ad-hoc signed ZIPs (`arm64` / `x86_64`) are published on [GitHub Releases](https://github.com/Serendipity-Y/codex-usage-status/releases). See [CHANGELOG.md](CHANGELOG.md) for version history.
+- **Downloads & releases**: Pre-built ad-hoc signed ZIPs (`arm64` / `x86_64`) are published on [GitHub Releases](https://github.com/Serendipity-Y/ai-usage-status/releases). See [CHANGELOG.md](CHANGELOG.md) for version history.
