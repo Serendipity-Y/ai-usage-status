@@ -5,7 +5,7 @@
 > 本项目基于 [tollenceld/codex-usage-status](https://github.com/tollenceld/codex-usage-status) 扩展，与 OpenAI、Google 及各第三方厂商无官方关联。为保持向后兼容，本机应用包与配置目录仍沿用 `CodexUsageStatus`。  
 > 完整更新日志：[CHANGELOG.md](CHANGELOG.md) ｜ [English](#english)
 
-![AI Usage Status 双栏悬浮弹窗效果图](docs/assets/hover-card-v0.2.0.png)
+![AI Usage Status 2×2 悬浮弹窗效果图](docs/assets/hover-card-v0.3.0.png)
 
 *以上为使用虚构示例数据渲染的实机界面效果图，不含任何真实账号数据。*
 
@@ -13,10 +13,11 @@
 
 ## 核心特性（中文说明）
 
-- **双栏白底悬浮弹窗**：鼠标停留在菜单栏图标约 `0.2s` 自动展开：
-  - **左栏（Gemini · Antigravity）**：支持最多 5 条配额桶（`5 小时`、`每周`、`Argon 每周`、`Claude/GPT 5H`、`Claude/GPT 每周`），带语义色进度条、表格式对齐百分比与重置时间；
-  - **右栏上区（Codex）**：展示可用重置次数（`availableCount`）、`5 小时` 与 `每周` 剩余百分比进度条及重置时间；
-  - **右栏下区（其他工具）**：以三列对齐方式展示 **WorkBuddy / Trae / Qoder / AgentRouter** 剩余积分/美元余额与签到状态；
+- **2×2 四宫格白底悬浮弹窗**：鼠标停留在菜单栏图标约 `0.2s` 自动展开：
+  - **左上（Gemini）**：展示 Gemini 普通聊天的 `5 小时` 与 `每周` 剩余百分比进度条与重置时间，支持 **Chrome 扩展后台静默同步**（无需常开设置页或网页标签），并保留 macOS 辅助功能快照兜底；
+  - **左下（Antigravity）**：展示 Antigravity 的 `5 小时`、`每周`、`Argon 每周` 剩余百分比与重置时间；
+  - **右上（Codex）**：展示可用重置次数（`availableCount`）、`5 小时` 与 `每周` 剩余百分比进度条及重置时间（与左上 `Gemini` 等高齐平）；
+  - **右下（其他工具）**：以三列对齐方式展示 **WorkBuddy / Trae / Qoder / AgentRouter** 剩余积分/美元余额与签到状态（与左下 `Antigravity` 等高齐平）；
   - **底部通栏**：展示下次后台自动刷新时间。
 - **三种菜单栏图标样式**：点击菜单栏图标 → **Display Style** 可自由切换：
   - **Compact Ring (7D)**（`30pt` 宽紧凑单环，专为刘海屏右侧菜单栏优化，不易被遮挡）；
@@ -71,7 +72,16 @@ python3 lifecycle/install.py install \
 
 停用联动监听：`python3 lifecycle/install.py disable`。
 
-## 可选：接入 Gemini 与其他工具数据源
+## 可选：Gemini 聊天额度 Chrome 扩展桥接（免常开设置页）
+
+1. 注册本机 Native Messaging 接收端：
+   ```sh
+   python3 integrations/gemini-chat/install_native_host.py
+   ```
+2. 在 Chrome 打开 `chrome://extensions`，启用右上角 **开发者模式**，点击 **加载已解压的扩展程序**，选择 `integrations/gemini-chat/extension` 目录；
+3. 确保 Chrome 已登录 `https://gemini.google.com` 后，扩展会每分钟自动只将两个百分比和重置时间发送到本机菜单栏（不导出 Cookie 或聊天内容），可随时关闭 Gemini 设置页与网页标签。
+
+## 可选：接入 Antigravity 与其他工具数据源
 
 悬浮窗左栏（Gemini）与右栏下区（WorkBuddy / Trae / Qoder）支持通过用户自主配置的本地数据源并发独立刷新，解析优先级如下：
 
@@ -108,7 +118,7 @@ JSON 数据协议示例：
 
 An unofficial native macOS menu-bar companion for viewing **Codex**, **Gemini / Antigravity**, and optional external tool balances (**WorkBuddy / Trae / Qoder**) at a glance.
 
-- **Two-column hover card**: Left column shows up to 5 Gemini / Antigravity quota buckets with progress bars and reset times; right column shows Codex 5-hour / weekly windows (with available reset count) and tabular credit balances for WorkBuddy / Trae / Qoder.
+- **2×2 hover card**: Top-left shows Gemini chat 5-hour and weekly limits (synced silently via the optional Chrome extension bridge in `integrations/gemini-chat/`, with macOS Accessibility fallback); bottom-left shows Antigravity quotas; top-right shows Codex 5-hour / weekly windows and reset credits; bottom-right shows tabular credit/USD balances for WorkBuddy / Trae / Qoder / AgentRouter.
 - **Display styles**: Switch between **Compact Ring (7D)** (`30pt` notch-friendly single ring), **Double Ring**, and **Large Readout**.
 - **Privacy & safety**: Codex usage comes exclusively from local `codex app-server` (`account/rateLimits/read`). The app itself never reads credential files, browser cookies, Keychain items, or OAuth tokens. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 - **Multi-host lifecycle helper**: Optional per-user listener (`lifecycle/install.py`) keeps the badge running while any configured host app (`ChatGPT.app`, `Gemini.app`, `Antigravity.app`) is active and quits cleanly once all exit.

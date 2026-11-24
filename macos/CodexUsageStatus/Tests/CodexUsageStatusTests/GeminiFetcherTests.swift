@@ -136,3 +136,29 @@ private func withTempDir(_ body: (URL) throws -> Void) throws {
     #expect(failedWithCache.gemini.rows.count == 2)
     #expect(failedWithCache.gemini.status == "读取超时 · 上次成功 16:58")
 }
+
+@Test func argonKeepsItsSlotWhenOmittedAndShowsRealZeroWhenReturned() throws {
+    let prefix = "antigravity-quota-summary-"
+    let common = ["gemini-5h", "gemini-weekly", "3p-5h", "3p-weekly"]
+    func rows(_ ids: [String]) throws -> [QuotaRowPresentation] {
+        let buckets = ids.map { id in
+            ["id": prefix + id, "label": id == "gemini-argon-wtu-weekly" ? "Argon 每周" : id,
+             "remainingPercent": 0] as [String: Any]
+        }
+        let data = try JSONSerialization.data(withJSONObject: ["buckets": buckets])
+        let snapshot = try GeminiUsageFetcher.decodeSummary(from: data)
+        return HoverPresentation(usage: nil, nextRefreshDate: nil, lastRefreshDate: nil,
+            isRefreshing: false, refreshFailed: false, geminiUsage: snapshot, geminiError: nil).gemini.rows
+    }
+
+    let missing = try rows(common)
+    #expect(missing.map(\.label) == ["gemini-5h", "gemini-weekly", "Argon 每周", "3p-5h", "3p-weekly"])
+    #expect(missing[2].percent == nil && missing[2].percentText == "—")
+    #expect(missing[2].resetText == "— · 本次未返回" && !missing[2].showsProgressBar)
+    var complete = common
+    complete.insert("gemini-argon-wtu-weekly", at: 2)
+    let restored = try rows(complete)
+    #expect(restored.count == 5 && restored[2].label == "Argon 每周")
+    #expect(restored[2].percentText == "0%" && restored[2].showsProgressBar)
+    #expect(try rows(common + ["new-window"]).last?.label == "new-window")
+}

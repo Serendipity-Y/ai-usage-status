@@ -1,5 +1,21 @@
 # 更新记录 / Changelog
 
+## v0.3.0 — 2026-11-24
+
+### 中文
+
+- **2×2 四宫格悬浮弹窗布局**：左栏拆分为上下两张独立卡片——**左上 `Gemini`**（普通聊天 5 小时 / 每周剩余百分比与重置时间，与右上 `Codex` 顶底齐平）、**左下 `Antigravity`**（5 小时 / 每周 / Argon 每周，与右下 `其他工具` 顶底齐平）。
+- **Gemini 聊天额度 Chrome 扩展桥接**：新增 `integrations/gemini-chat/`（Chrome MV3 扩展 + Native Messaging 本机接收程序 `native_host.py` + 一键注册脚本 `install_native_host.py`）；登录 Chrome 里的 `gemini.google.com` 后即可每分钟后台静默同步 5 小时与每周额度到菜单栏，无需保持 Gemini Mac 设置页或网页标签打开；同时保留 macOS 辅助功能读取与本地快照作为兜底。
+- **多数据源独立调度**：新增 `RefreshSchedule`，Codex、Antigravity/外部工具、Gemini 聊天各自独立刷新与退避重试，互不阻塞；当 Antigravity 某次未返回 Argon 桶时安全保留槽位不误报 0%。
+- **测试覆盖**：新增 `GeminiChatQuotaTests`、`RefreshScheduleTests`、`gemini.test.mjs` 及 2×2 上下顺序布局断言测试（共 29 项 Swift 测试 + 8 项 Node 测试）。
+
+### English
+
+- **2×2 hover card grid**: Split the left column into two distinct cards—**top-left `Gemini`** (5-hour and weekly chat limits, height-matched with top-right `Codex`) and **bottom-left `Antigravity`** (5-hour, weekly, and Argon weekly, aligned with bottom-right external tool balances).
+- **Gemini chat Chrome extension bridge**: Add `integrations/gemini-chat/` (Chrome MV3 extension + per-user Native Messaging host `native_host.py` + `install_native_host.py`). Syncs Gemini chat 5-hour and weekly limits in the background without keeping Gemini settings or web tabs open, with macOS Accessibility pane and cached snapshots as fallback.
+- **Independent per-source refresh scheduling**: Add `RefreshSchedule` so Codex, Antigravity/external tools, and Gemini chat refresh and back off independently; preserve the Argon slot when temporarily omitted.
+- **Tests**: Add `GeminiChatQuotaTests`, `RefreshScheduleTests`, `gemini.test.mjs`, and 2×2 layout order checks (29 Swift tests + 8 Node tests).
+
 ## v0.2.0 — 2026-11-23
 
 ### 中文

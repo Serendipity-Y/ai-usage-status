@@ -32,6 +32,11 @@ struct HoverPresentation {
     let weeklyPercent: Int?
     let codexRows: [QuotaRowPresentation]
     let gemini: GeminiHoverPresentation
+    let chatBadgeText: String
+    let isChatBadgeWarning: Bool
+    let chatRows: [QuotaRowPresentation]
+    let chatNote: String?
+    let chatHelp: String?
     let extraToolRows: [QuotaRowPresentation]
     let nextRefresh: String
     let status: String
@@ -49,7 +54,10 @@ struct HoverPresentation {
         failureDescription: String? = nil,
         geminiUsage: GeminiUsageSummary? = nil,
         geminiLastRefreshDate: Date? = nil,
-        geminiError: GeminiFetchError? = .notConfigured
+        geminiError: GeminiFetchError? = .notConfigured,
+        geminiIsRefreshing: Bool = false,
+        chatQuota: GeminiChatQuota? = nil,
+        chatUnavailable: String? = nil
     ) {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
@@ -79,12 +87,71 @@ struct HoverPresentation {
             QuotaRowPresentation(label: "每周", percent: weeklyPercent, resetText: weeklyReset),
         ]
 
-        let geminiRows: [QuotaRowPresentation] = (geminiUsage?.buckets.prefix(5) ?? []).map { bucket in
+        let showsChat = chatQuota != nil || chatUnavailable != nil
+        if showsChat {
+            func chatRow(_ label: String, _ window: GeminiChatQuota.Window?) -> QuotaRowPresentation {
+                let formattedReset: String
+                if let date = window?.resetsAt {
+                    formattedReset = resetTime(date)
+                } else if let text = window?.reset {
+                    formattedReset = text
+                } else {
+                    formattedReset = "—"
+                }
+                return QuotaRowPresentation(
+                    label: label,
+                    percent: window.map { 100 - $0.used },
+                    resetText: formattedReset,
+                    showsProgressBar: window != nil
+                )
+            }
+            chatRows = [chatRow("5 小时", chatQuota?.current), chatRow("每周", chatQuota?.weekly)]
+            let sourceTag = chatQuota?.isFromChrome == true ? "Chrome" : "快照"
+            let stamp = chatQuota.map { "\(sourceTag) " + shortTime($0.readAt) }
+            let pageAge = chatQuota?.pageUpdate?.replacingOccurrences(
+                of: #"^(更新时间|Last updated)\s*[:：]?\s*"#,
+                with: "",
+                options: [.regularExpression, .caseInsensitive]
+            )
+            if let chatUnavailable {
+                chatBadgeText = stamp ?? "待同步"
+                isChatBadgeWarning = true
+                chatNote = chatUnavailable
+            } else {
+                chatBadgeText = stamp ?? "已同步"
+                isChatBadgeWarning = false
+                chatNote = nil
+            }
+            let helpHeader = chatQuota?.isFromChrome == true
+                ? "Gemini 聊天额度（通过 Chrome 扩展自动同步），显示剩余百分比。"
+                : "Gemini 普通聊天，显示剩余额度。高级模型和功能可能消耗更多额度。"
+            chatHelp = ([helpHeader, chatQuota?.pageUpdate, pageAge.map { "页面更新：\($0)" }]
+                .compactMap { $0 }).joined(separator: "\n")
+        } else {
+            chatBadgeText = "未启用"
+            isChatBadgeWarning = false
+            chatRows = []
+            chatNote = nil
+            chatHelp = nil
+        }
+
+        let replacedIDs = ["antigravity-quota-summary-3p-5h", "antigravity-quota-summary-3p-weekly"]
+        let buckets = (geminiUsage?.buckets ?? []).filter { !showsChat || !replacedIDs.contains($0.id) }
+        var geminiRows = buckets.prefix(5).map { bucket in
             QuotaRowPresentation(
                 label: bucket.label,
                 percent: bucket.remainingPercent,
                 resetText: resetTime(bucket.resetsAt)
             )
+        }
+
+        // Only the named Antigravity windows have a known Argon slot. Preserve custom feeds.
+        if buckets.count < 5,
+           buckets.contains(where: { $0.id.hasPrefix("antigravity-quota-summary-") }),
+           !buckets.contains(where: { $0.id == "antigravity-quota-summary-gemini-argon-wtu-weekly" }) {
+            let missing = QuotaRowPresentation(label: "Argon 每周", percent: nil,
+                resetText: "— · 本次未返回", valueText: "—", showsProgressBar: false)
+            geminiRows.insert(missing, at: min(2, geminiRows.count))
         }
 
         let defaultExtraTools: [(id: String, name: String)] = [
@@ -117,7 +184,7 @@ struct HoverPresentation {
             return QuotaRowPresentation(
                 label: spec.name,
                 percent: nil,
-                resetText: isRefreshing ? "读取中…" : "待配置签到源",
+                resetText: geminiIsRefreshing ? "读取中…" : "待配置签到源",
                 showsProgressBar: false
             )
         }
@@ -162,16 +229,16 @@ struct HoverPresentation {
             )
         } else {
             gemini = GeminiHoverPresentation(
-                badgeText: isRefreshing ? "读取中" : "暂无数据",
+                badgeText: geminiIsRefreshing ? "读取中" : "暂无数据",
                 isBadgeWarning: false,
                 rows: [],
-                emptyHint: isRefreshing ? "正在读取 Gemini 额度…" : "暂未取得 Gemini 额度数据",
+                emptyHint: geminiIsRefreshing ? "正在读取 Antigravity 额度…" : "暂未取得 Antigravity 额度数据",
                 status: nil
             )
         }
 
         formatter.dateFormat = "HH:mm:ss"
-        if isRefreshing {
+        if isRefreshing || geminiIsRefreshing {
             nextRefresh = "正在刷新…"
         } else if let nextRefreshDate {
             nextRefresh = nextRefreshDate > now ? formatter.string(from: nextRefreshDate) : "即将刷新"

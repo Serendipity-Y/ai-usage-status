@@ -18,6 +18,15 @@ final class HoverCardViewController: NSViewController {
     private let codexRowViews = [QuotaRowView(), QuotaRowView()]
     private let codexStatus = NSTextField(labelWithString: "")
 
+    private var geminiChatCard: NSView!
+    private var topCardsEqualHeight: NSLayoutConstraint?
+    private let chatBadge = NSTextField(labelWithString: "未启用")
+    private let chatRowViews = [QuotaRowView(), QuotaRowView()]
+    private let chatNote = NSTextField(labelWithString: "")
+
+    private var antigravityCard: NSView!
+    private var antigravityStack: NSStackView!
+    private let antigravityTitle = NSTextField(labelWithString: "Antigravity")
     private let geminiBadge = NSTextField(labelWithString: "未配置")
     private let geminiRowViews = (0..<5).map { _ in QuotaRowView() }
     private let geminiEmptyHint = NSTextField(labelWithString: "")
@@ -38,9 +47,20 @@ final class HoverCardViewController: NSViewController {
         card.layer?.cornerRadius = 10
         view = card
 
-        let geminiCard = makeGeminiSection()
+        geminiChatCard = makeGeminiChatSection()
+        antigravityCard = makeAntigravitySection()
         let codexCard = makeCodexSection()
         let extraToolsCard = makeExtraToolsSection()
+
+        let leftColumn = NSStackView(views: [geminiChatCard, antigravityCard])
+        leftColumn.orientation = .vertical
+        leftColumn.alignment = .leading
+        leftColumn.spacing = 12
+        leftColumn.detachesHiddenViews = true
+        leftColumn.translatesAutoresizingMaskIntoConstraints = false
+        for child in leftColumn.arrangedSubviews {
+            child.widthAnchor.constraint(equalTo: leftColumn.widthAnchor).isActive = true
+        }
 
         let rightColumn = NSStackView(views: [codexCard, extraToolsCard])
         rightColumn.orientation = .vertical
@@ -53,27 +73,36 @@ final class HoverCardViewController: NSViewController {
 
         let columnsContainer = NSView()
         columnsContainer.translatesAutoresizingMaskIntoConstraints = false
-        columnsContainer.addSubview(geminiCard)
+        columnsContainer.addSubview(leftColumn)
         columnsContainer.addSubview(rightColumn)
 
-        let geminiStretch = geminiCard.bottomAnchor.constraint(equalTo: columnsContainer.bottomAnchor)
-        geminiStretch.priority = .defaultHigh
+        let leftStretch = leftColumn.bottomAnchor.constraint(equalTo: columnsContainer.bottomAnchor)
+        leftStretch.priority = .defaultHigh
         let rightStretch = rightColumn.bottomAnchor.constraint(equalTo: columnsContainer.bottomAnchor)
         rightStretch.priority = .defaultHigh
+        let antigravityStretch = antigravityCard.bottomAnchor.constraint(equalTo: leftColumn.bottomAnchor)
+        antigravityStretch.priority = .defaultHigh
+        let extraToolsStretch = extraToolsCard.bottomAnchor.constraint(equalTo: rightColumn.bottomAnchor)
+        extraToolsStretch.priority = .defaultHigh
+        let topEqual = geminiChatCard.heightAnchor.constraint(equalTo: codexCard.heightAnchor)
+        topEqual.priority = .defaultHigh
+        topCardsEqualHeight = topEqual
 
         NSLayoutConstraint.activate([
-            geminiCard.leadingAnchor.constraint(equalTo: columnsContainer.leadingAnchor),
-            geminiCard.topAnchor.constraint(equalTo: columnsContainer.topAnchor),
-            geminiCard.bottomAnchor.constraint(lessThanOrEqualTo: columnsContainer.bottomAnchor),
-            geminiCard.widthAnchor.constraint(equalToConstant: Self.columnWidth),
-            geminiStretch,
+            leftColumn.leadingAnchor.constraint(equalTo: columnsContainer.leadingAnchor),
+            leftColumn.topAnchor.constraint(equalTo: columnsContainer.topAnchor),
+            leftColumn.bottomAnchor.constraint(lessThanOrEqualTo: columnsContainer.bottomAnchor),
+            leftColumn.widthAnchor.constraint(equalToConstant: Self.columnWidth),
+            leftStretch,
+            antigravityStretch,
 
-            rightColumn.leadingAnchor.constraint(equalTo: geminiCard.trailingAnchor, constant: Self.columnGap),
+            rightColumn.leadingAnchor.constraint(equalTo: leftColumn.trailingAnchor, constant: Self.columnGap),
             rightColumn.trailingAnchor.constraint(equalTo: columnsContainer.trailingAnchor),
             rightColumn.topAnchor.constraint(equalTo: columnsContainer.topAnchor),
             rightColumn.bottomAnchor.constraint(lessThanOrEqualTo: columnsContainer.bottomAnchor),
             rightColumn.widthAnchor.constraint(equalToConstant: Self.columnWidth),
             rightStretch,
+            extraToolsStretch,
         ])
 
         style(refresh, size: 11.5, weight: .medium, color: NSColor(calibratedWhite: 0.32, alpha: 1))
@@ -124,10 +153,36 @@ final class HoverCardViewController: NSViewController {
         codexStatus.isHidden = !presentation.isStale
         codexStatus.textColor = Self.warningColor
 
-        geminiBadge.stringValue = presentation.gemini.badgeText
+        let showsChat = !presentation.chatRows.isEmpty
+        geminiChatCard.isHidden = !showsChat
+        topCardsEqualHeight?.isActive = showsChat
+        chatBadge.stringValue = presentation.chatBadgeText
+        chatBadge.textColor = presentation.isChatBadgeWarning
+            ? Self.warningColor
+            : NSColor(calibratedWhite: 0.44, alpha: 1)
+        chatNote.stringValue = presentation.chatNote ?? ""
+        chatNote.isHidden = presentation.chatNote == nil
+        chatNote.textColor = Self.warningColor
+        chatNote.toolTip = presentation.chatHelp
+        for (index, rowView) in chatRowViews.enumerated() {
+            if index < presentation.chatRows.count {
+                rowView.isHidden = false
+                rowView.update(presentation.chatRows[index])
+                rowView.toolTip = presentation.chatHelp
+            } else {
+                rowView.isHidden = true
+            }
+        }
+
+        antigravityTitle.stringValue = showsChat ? "Antigravity" : "Gemini"
+        let agBadge = presentation.gemini.badgeText
+        geminiBadge.stringValue = (showsChat && agBadge == "Antigravity") ? "已接入" : agBadge
         geminiBadge.textColor = presentation.gemini.isBadgeWarning
             ? Self.warningColor
             : NSColor(calibratedWhite: 0.44, alpha: 1)
+
+        // Match vertical rhythm to the right-side card height (4 rows when 2x2, full height when single left card).
+        antigravityStack.spacing = showsChat ? 16 : 23
 
         for (index, rowView) in geminiRowViews.enumerated() {
             if index < presentation.gemini.rows.count {
@@ -177,6 +232,41 @@ final class HoverCardViewController: NSViewController {
         }
     }
 
+    private func makeGeminiChatSection() -> NSView {
+        let title = makeLabel("Gemini", size: 12.5, weight: .semibold, color: NSColor(calibratedWhite: 0.12, alpha: 1))
+        style(chatBadge, size: 11, weight: .medium, color: NSColor(calibratedWhite: 0.44, alpha: 1))
+        let header = horizontalRow(title, chatBadge)
+
+        style(chatNote, size: 10.5, weight: .regular, color: Self.warningColor)
+        chatNote.isHidden = true
+
+        return makeSectionCard(views: [header] + chatRowViews + [chatNote], spacing: 12, verticalPadding: 12).0
+    }
+
+    private func makeAntigravitySection() -> NSView {
+        style(antigravityTitle, size: 12.5, weight: .semibold, color: NSColor(calibratedWhite: 0.12, alpha: 1))
+        style(geminiBadge, size: 11, weight: .medium, color: NSColor(calibratedWhite: 0.44, alpha: 1))
+        let header = horizontalRow(antigravityTitle, geminiBadge)
+
+        style(geminiEmptyHint, size: 11, weight: .regular, color: NSColor(calibratedWhite: 0.46, alpha: 1))
+        geminiEmptyHint.isHidden = true
+
+        style(geminiStatus, size: 10.5, weight: .regular, color: Self.warningColor)
+        geminiStatus.isHidden = true
+
+        for row in geminiRowViews {
+            row.isHidden = true
+        }
+
+        let (container, stack) = makeSectionCard(
+            views: [header] + geminiRowViews + [geminiEmptyHint, geminiStatus],
+            spacing: 16,
+            verticalPadding: 12
+        )
+        antigravityStack = stack
+        return container
+    }
+
     private func makeCodexSection() -> NSView {
         let title = makeLabel("Codex", size: 12.5, weight: .semibold, color: NSColor(calibratedWhite: 0.12, alpha: 1))
         style(codexResetTitle, size: 11.5, weight: .regular, color: NSColor(calibratedWhite: 0.45, alpha: 1))
@@ -200,25 +290,7 @@ final class HoverCardViewController: NSViewController {
         let title = makeLabel("其他工具", size: 12.5, weight: .semibold, color: NSColor(calibratedWhite: 0.12, alpha: 1))
         let subtitle = makeLabel("剩余积分", size: 11, weight: .regular, color: NSColor(calibratedWhite: 0.48, alpha: 1))
         let header = horizontalRow(title, subtitle)
-        return makeSectionCard(views: [header] + extraToolRowViews, spacing: 12, verticalPadding: 12).0
-    }
-
-    private func makeGeminiSection() -> NSView {
-        let title = makeLabel("Gemini", size: 12.5, weight: .semibold, color: NSColor(calibratedWhite: 0.12, alpha: 1))
-        style(geminiBadge, size: 11, weight: .medium, color: NSColor(calibratedWhite: 0.44, alpha: 1))
-        let header = horizontalRow(title, geminiBadge)
-
-        style(geminiEmptyHint, size: 11, weight: .regular, color: NSColor(calibratedWhite: 0.46, alpha: 1))
-        geminiEmptyHint.isHidden = true
-
-        style(geminiStatus, size: 10.5, weight: .regular, color: Self.warningColor)
-        geminiStatus.isHidden = true
-
-        for row in geminiRowViews {
-            row.isHidden = true
-        }
-
-        return makeSectionCard(views: [header] + geminiRowViews + [geminiEmptyHint, geminiStatus], spacing: 23, verticalPadding: 12).0
+        return makeSectionCard(views: [header] + extraToolRowViews, spacing: 14, verticalPadding: 12).0
     }
 
     private func makeSectionCard(views: [NSView], spacing: CGFloat, verticalPadding: CGFloat) -> (NSView, NSStackView) {

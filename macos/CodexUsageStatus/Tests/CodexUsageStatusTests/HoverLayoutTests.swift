@@ -133,3 +133,61 @@ private func sampleGeminiSummary() throws -> GeminiUsageSummary {
         }
     }
 }
+
+@Test @MainActor func geminiChatCardRendersAboveAntigravityCardWithoutClipping() throws {
+    let controller = HoverCardViewController()
+    let now = Date(timeIntervalSince1970: 1795512000)
+    let chat = GeminiChatQuota(
+        current: .init(used: 4, reset: nil, resetsAt: now.addingTimeInterval(3600)),
+        weekly: .init(used: 1, reset: nil, resetsAt: now.addingTimeInterval(86400 * 5)),
+        readAt: now,
+        pageUpdate: nil,
+        source: "chrome"
+    )
+    let agJSON = """
+    {"plan":"Antigravity","buckets":[
+      {"id":"antigravity-quota-summary-gemini-5h","label":"5 小时","remainingPercent":80,"resetsAt":1795526700},
+      {"id":"antigravity-quota-summary-gemini-weekly","label":"每周","remainingPercent":92,"resetsAt":1796100300},
+      {"id":"antigravity-quota-summary-gemini-argon-wtu-weekly","label":"Argon 每周","remainingPercent":90,"resetsAt":1796100300}
+    ]}
+    """
+    let ag = try GeminiUsageFetcher.decodeSummary(from: Data(agJSON.utf8))
+    controller.update(HoverPresentation(
+        usage: nil,
+        nextRefreshDate: now.addingTimeInterval(120),
+        lastRefreshDate: now,
+        isRefreshing: false,
+        refreshFailed: false,
+        now: now,
+        geminiUsage: ag,
+        geminiLastRefreshDate: now,
+        geminiError: nil,
+        chatQuota: chat,
+        chatUnavailable: nil
+    ))
+    let view = controller.view
+    view.layoutSubtreeIfNeeded()
+
+    func visibleFields(in node: NSView) -> [NSTextField] {
+        guard !node.isHidden else { return [] }
+        return node.subviews.flatMap { child -> [NSTextField] in
+            if child.isHidden { return [] }
+            if let field = child as? NSTextField { return [field] }
+            return visibleFields(in: child)
+        }
+    }
+
+    let fields = visibleFields(in: view)
+    let geminiHeader = try #require(fields.first { $0.stringValue == "Gemini" })
+    let agHeader = try #require(fields.first { $0.stringValue == "Antigravity" })
+    let geminiFrame = geminiHeader.convert(geminiHeader.bounds, to: view)
+    let agFrame = agHeader.convert(agHeader.bounds, to: view)
+    // AppKit default coordinate origin is bottom-left, so higher minY means visually above.
+    #expect(geminiFrame.minY > agFrame.minY)
+    for field in fields {
+        let frame = field.convert(field.bounds, to: view)
+        #expect(frame.minX >= 0 && frame.maxX <= view.bounds.maxX)
+        #expect(frame.minY >= 0 && frame.maxY <= view.bounds.maxY)
+        #expect(field.frame.width >= field.intrinsicContentSize.width)
+    }
+}

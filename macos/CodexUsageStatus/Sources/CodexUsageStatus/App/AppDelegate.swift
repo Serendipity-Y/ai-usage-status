@@ -15,19 +15,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let compactRingItem = NSMenuItem(title: BadgeStyle.compactRing.menuTitle, action: #selector(selectCompactRingStyle), keyEquivalent: "")
     private let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
 
-    private var timer: Timer?
-    private var isRefreshing = false
-    private var consecutiveFailures = 0
+    private lazy var codexSchedule = RefreshSchedule(interval: refreshInterval,
+        fetch: { [unowned self] in await refreshCodex() }, onChange: { [unowned self] in refreshStateChanged() })
+    private lazy var geminiSchedule = RefreshSchedule(interval: refreshInterval,
+        fetch: { [unowned self] in await refreshGemini() }, onChange: { [unowned self] in refreshStateChanged() })
     private let refreshLog = Logger(subsystem: "io.github.codexusagestatus", category: "refresh")
     private let refreshInterval = configuredRefreshInterval()
     private var badgeStyle = BadgeStyle.load()
+    private let hasGeminiChat = NSWorkspace.shared.urlForApplication(withBundleIdentifier: GeminiChatPane.bundleID) != nil
+        || FileManager.default.fileExists(atPath: GeminiChatQuota.chromeNativeHostManifestURL.path)
+        || FileManager.default.fileExists(atPath: GeminiChatQuota.chromeCacheURL.path)
+    private var chatQuota = GeminiChatQuota.cached()
+    private var chatUnavailable: String? = "等待读取 Gemini 额度"
+    private lazy var chatSchedule = RefreshSchedule(interval: refreshInterval,
+        fetch: { [unowned self] in await refreshChat() }, onChange: { [unowned self] in refreshStateChanged() })
     private var lastUsage: UsageSummary?
     private var lastRefreshDate: Date?
     private var lastError: Error?
     private var lastGeminiUsage: GeminiUsageSummary?
     private var lastGeminiRefreshDate: Date?
-    private var lastGeminiError: GeminiFetchError? = .notConfigured
-    private var nextRefreshDate: Date?
+    private var lastGeminiError: GeminiFetchError?
     private var buttonTrackingArea: NSTrackingArea?
     private var hoverShowWork: DispatchWorkItem?
     private var hoverHideWork: DispatchWorkItem?
@@ -87,6 +94,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(displayStyleItem)
         updateStyleMenuState()
 
+        if hasGeminiChat && !AXIsProcessTrusted() {
+            let access = NSMenuItem(title: "授权读取 Gemini 聊天额度…", action: #selector(requestChatAccess), keyEquivalent: "")
+            access.target = self
+            menu.addItem(access)
+        }
         settingsItem.target = self
         menu.addItem(settingsItem)
 
@@ -123,6 +135,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func showHoverPopover() {
         guard !menuIsOpen, let button = statusItem.button, button.window != nil else { return }
+        if hasGeminiChat, case .fresh(let latest) = GeminiChatQuota.readChromeReport() {
+            chatQuota = latest
+            chatUnavailable = nil
+            try? latest.save()
+        }
         updateHoverCard()
         hoverPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         if CommandLine.arguments.contains("--show-hover") {
@@ -153,23 +170,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateHoverCard() {
         hoverCard.update(HoverPresentation(
             usage: lastUsage,
-            nextRefreshDate: nextRefreshDate,
+            nextRefreshDate: [codexSchedule.nextRefreshDate, geminiSchedule.nextRefreshDate, hasGeminiChat ? chatSchedule.nextRefreshDate : nil].compactMap { $0 }.min(),
             lastRefreshDate: lastRefreshDate,
-            isRefreshing: isRefreshing,
+            isRefreshing: codexSchedule.isRefreshing,
             refreshFailed: lastError != nil,
             failureDescription: (lastError as? FetchError)?.briefDescription ?? "读取失败",
             geminiUsage: lastGeminiUsage,
             geminiLastRefreshDate: lastGeminiRefreshDate,
-            geminiError: lastGeminiError
+            geminiError: lastGeminiError,
+            geminiIsRefreshing: geminiSchedule.isRefreshing,
+            chatQuota: hasGeminiChat ? chatQuota : nil,
+            chatUnavailable: hasGeminiChat ? chatUnavailable : nil
         ))
         hoverPopover.contentSize = hoverCard.preferredContentSize
     }
 
     @objc private func refreshFromMenu() {
-        refresh()
-    }
-
-    @objc private func timerDidFire() {
         refresh()
     }
 
@@ -245,96 +261,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func refresh() {
-        guard !isRefreshing else {
-            return
+        codexSchedule.refresh()
+        geminiSchedule.refresh()
+        if hasGeminiChat { chatSchedule.refresh() }
+    }
+
+    @objc private func requestChatAccess() {
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        chatSchedule.refresh()
+    }
+
+    private func refreshChat() async -> Bool {
+        let reading = await Task.detached(priority: .utility) { GeminiChatPane.readBest() }.value
+        switch reading {
+        case .snapshot(let snapshot):
+            chatQuota = snapshot
+            chatUnavailable = nil
+            try? snapshot.save()
+        case .unavailable(let reason):
+            if let cached = GeminiChatQuota.cached(),
+               chatQuota == nil || cached.readAt > (chatQuota?.readAt ?? .distantPast) {
+                chatQuota = cached
+            }
+            chatUnavailable = reason
         }
+        return true
+    }
 
-        isRefreshing = true
-        timer?.invalidate()
-        timer = nil
-        nextRefreshDate = nil
-        refreshItem.isEnabled = false
-        refreshItem.title = "Refreshing..."
-        updateHoverCard()
-
-        Task { [weak self] in
-            guard let self else {
-                return
+    private func refreshCodex() async -> Bool {
+        do {
+            let usage = try await CodexUsageFetcher.fetch()
+            if codexSchedule.consecutiveFailures > 0 {
+                refreshLog.notice("Usage refresh recovered after \(self.codexSchedule.consecutiveFailures) failures")
             }
-
-            async let codexResult: Result<UsageSummary, Error> = {
-                do {
-                    return .success(try await CodexUsageFetcher.fetch())
-                } catch {
-                    return .failure(error)
-                }
-            }()
-
-            async let geminiResult: Result<GeminiUsageSummary, GeminiFetchError> = {
-                do {
-                    return .success(try await GeminiUsageFetcher.fetch())
-                } catch let error as GeminiFetchError {
-                    return .failure(error)
-                } catch {
-                    return .failure(.invalidOutput)
-                }
-            }()
-
-            let (codex, gemini) = await (codexResult, geminiResult)
-
-            switch gemini {
-            case .success(let summary):
-                self.lastGeminiUsage = summary
-                self.lastGeminiRefreshDate = Date()
-                self.lastGeminiError = nil
-            case .failure(let error):
-                self.lastGeminiError = error
-                if error == .notConfigured {
-                    self.lastGeminiUsage = nil
+            applyUsage(usage)
+            return true
+        } catch {
+            let retry = AppConfig.retryInterval(afterFailures: codexSchedule.consecutiveFailures + 1)
+            let reason = (error as? FetchError)?.briefDescription ?? "读取失败"
+            refreshLog.error("Usage refresh failed: \(reason, privacy: .public); retry in \(Int(retry)) seconds")
+            if let fetchError = error as? FetchError, case .appServerError(let code) = fetchError {
+                if let code {
+                    refreshLog.error("RPC error code: \(code)")
                 } else {
-                    self.refreshLog.error("Gemini usage refresh failed: \(error.briefDescription, privacy: .public)")
+                    refreshLog.error("RPC error code: unknown")
                 }
             }
-
-            self.isRefreshing = false
-            self.refreshItem.isEnabled = true
-            self.refreshItem.title = "Refresh"
-
-            switch codex {
-            case .success(let usage):
-                if self.consecutiveFailures > 0 {
-                    self.refreshLog.notice("Usage refresh recovered after \(self.consecutiveFailures) failures")
-                }
-                self.consecutiveFailures = 0
-                self.applyUsage(usage)
-                self.scheduleNextRefresh(after: self.refreshInterval)
-            case .failure(let error):
-                self.consecutiveFailures += 1
-                let retry = AppConfig.retryInterval(afterFailures: self.consecutiveFailures)
-                let reason = (error as? FetchError)?.briefDescription ?? "读取失败"
-                self.refreshLog.error("Usage refresh failed: \(reason, privacy: .public); retry in \(Int(retry)) seconds")
-                if let fetchError = error as? FetchError, case .appServerError(let code) = fetchError {
-                    if let code {
-                        self.refreshLog.error("RPC error code: \(code)")
-                    } else {
-                        self.refreshLog.error("RPC error code: unknown")
-                    }
-                }
-                self.applyError(error)
-                self.scheduleNextRefresh(after: retry)
-            }
+            applyError(error)
+            return false
         }
     }
 
-    private func scheduleNextRefresh(after seconds: TimeInterval) {
-        timer?.invalidate()
-        let scheduled = Timer(fireAt: Date(timeIntervalSinceNow: seconds), interval: 0,
-            target: self, selector: #selector(timerDidFire), userInfo: nil, repeats: false)
-        timer = scheduled
-        nextRefreshDate = scheduled.fireDate
-        RunLoop.main.add(scheduled, forMode: .common)
+    private func refreshGemini() async -> Bool {
+        do {
+            lastGeminiUsage = try await GeminiUsageFetcher.fetch()
+            lastGeminiRefreshDate = Date()
+            lastGeminiError = nil
+            return true
+        } catch {
+            let failure = error as? GeminiFetchError ?? .invalidOutput
+            lastGeminiError = failure
+            if failure == .notConfigured {
+                lastGeminiUsage = nil
+                lastGeminiRefreshDate = nil
+                return true // Poll at the normal interval for a newly configured optional source.
+            }
+            refreshLog.error("Gemini usage refresh failed: \(failure.briefDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    private func refreshStateChanged() {
+        let bothBusy = codexSchedule.isRefreshing && geminiSchedule.isRefreshing
+        refreshItem.isEnabled = !bothBusy
+        refreshItem.title = bothBusy ? "Refreshing..." : "Refresh"
         updateHoverCard()
-        if CommandLine.arguments.contains("--show-hover"), !previewShown {
+        if CommandLine.arguments.contains("--show-hover"), !previewShown,
+           codexSchedule.nextRefreshDate != nil, geminiSchedule.nextRefreshDate != nil,
+           !hasGeminiChat || chatSchedule.nextRefreshDate != nil {
             previewShown = true
             showHoverPopover()
         }

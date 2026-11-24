@@ -4,7 +4,7 @@ Codex Usage Status is intentionally narrow: it shows local Codex usage status in
 
 ## What the app reads
 
-The app reads only the structured usage response returned by the local Codex app-server method:
+For Codex, the app reads the structured response returned by the local app-server method
 
 ```json
 {"method":"account/rateLimits/read","id":2}
@@ -19,6 +19,13 @@ Codex itself owns authentication. This companion app receives the usage percenta
 - It does not scrape Codex UI pages, browser pages, screenshots, or OCR output.
 - It does not modify the official Codex app bundle.
 - It does not bypass, increase, reset, purchase, or route around usage limits.
+
+## Gemini chat limits on Mac
+
+The app supports two optional local sources for Gemini chat usage limits (5-hour and weekly percentages and reset timestamps):
+
+1. **Optional Chrome extension + Native Messaging host** (`integrations/gemini-chat/`): The extension reads only the two usage pool percentages and reset timestamps inside Chrome using the browser's own Google session, then sends those numbers via Chrome Native Messaging to the per-user local host (`gemini-chat-chrome.json`). No cookies, tokens, or conversation content leave Chrome.
+2. **macOS Accessibility fallback**: When Gemini for Mac is installed and the Chrome bridge has no fresh reading, the menu-bar app can use macOS Accessibility permission to read the two quota percentages, reset labels, and update label from its native Usage Limits pane, saving the latest snapshot under `CodexUsageStatus/gemini-chat-last-read.json`. The reader targets the quota settings window and does not open conversations or read messages.
 
 ## Optional ChatGPT lifecycle helper
 

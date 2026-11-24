@@ -1,6 +1,23 @@
 import AppKit
 import Foundation
 
+if CommandLine.arguments.contains("--capture-gemini-chat") {
+    switch GeminiChatPane.read() {
+    case .snapshot(let quota):
+        do {
+            try quota.save()
+            print("Gemini 聊天额度快照已更新")
+        } catch {
+            fputs("无法保存 Gemini 聊天额度快照\n", stderr)
+            exit(1)
+        }
+    case .unavailable(let reason):
+        fputs("\(reason)\n", stderr)
+        exit(1)
+    }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--once") {
     do {
         let usage = try CodexUsageFetcher.fetchSync()

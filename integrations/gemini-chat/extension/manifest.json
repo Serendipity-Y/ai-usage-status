@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "AI Usage Status · Gemini 聊天额度",
+  "version": "1.0.0",
+  "description": "将 Gemini 聊天的当前与每周额度发送到本机菜单栏。",
+  "minimum_chrome_version": "120",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "alarms",
+    "storage",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*",
+    "https://www.gstatic.com/bg3/boq-bard-web/*"
+  ],
+  "action": {
+    "default_title": "Gemini Usage bridge",
+    "default_popup": "popup.html"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAydbwSg4B5OBN6O9KyfXg2XmLEQRC4qpkaQtqiS4N0F9gJ0Krzt53lWjAVLVJ6tj6zpx9XXuHr1x7Lt9YyWZtN4wvAmW6m6zC4yrgqOkjbsBe6XK0midx+eYJphhdk9wWBEbb6GrkVNGJBvKwm/nWdnmozI3NojD5pdr5MqOWG7e5PpOyzE80ZbF5furlr59homntcx/rzOFSZ5U9ySLAr2Z3ngUEEPtGDsDQPq1eLHqclDD5Fi5WANDFCIiDXq1Rc62jbUx8J1Y5+K6wzLXakBVFa8AhXFqqK2vI2zgtjZWAaAG2Lin5be7z4RAO2GGKgDcbvtVP8Unfkp9AexfcAwIDAQAB"
+}
