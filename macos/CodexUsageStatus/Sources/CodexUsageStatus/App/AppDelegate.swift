@@ -295,7 +295,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if codexSchedule.consecutiveFailures > 0 {
                 refreshLog.notice("Usage refresh recovered after \(self.codexSchedule.consecutiveFailures) failures")
             }
-            applyUsage(usage)
+            lastUsage = usage
+            lastRefreshDate = Date()
+            lastError = nil
             return true
         } catch {
             let retry = AppConfig.retryInterval(afterFailures: codexSchedule.consecutiveFailures + 1)
@@ -308,12 +310,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     refreshLog.error("RPC error code: unknown")
                 }
             }
-            applyError(error)
+            lastError = error
             return false
         }
     }
 
     private func refreshGemini() async -> Bool {
+        defer { renderCurrentBadge() }
         do {
             lastGeminiUsage = try await GeminiUsageFetcher.fetch()
             lastGeminiRefreshDate = Date()
@@ -345,33 +348,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func applyUsage(_ usage: UsageSummary) {
-        lastUsage = usage
-        lastRefreshDate = Date()
-        lastError = nil
-        renderCurrentBadge()
-    }
-
-    private func applyError(_ error: Error) {
-        lastError = error
-        renderCurrentBadge()
-    }
-
     private func renderCurrentBadge() {
         statusItem.length = UsageBadgeRenderer.statusItemLength(for: badgeStyle)
         if let button = statusItem.button {
             button.title = ""
             button.toolTip = nil
 
-            if let lastError {
+            if let lastGeminiError {
                 button.image = UsageBadgeRenderer.errorImage(style: badgeStyle, appearance: button.effectiveAppearance)
-                button.setAccessibilityLabel("Codex 额度更新失败：\(lastError.localizedDescription)")
-            } else if let lastUsage {
-                button.image = UsageBadgeRenderer.image(for: lastUsage, style: badgeStyle, appearance: button.effectiveAppearance)
-                button.setAccessibilityLabel(lastUsage.verboseTitle)
+                button.setAccessibilityLabel("Antigravity 额度更新失败：\(lastGeminiError.briefDescription)")
+            } else if let lastGeminiUsage {
+                button.image = UsageBadgeRenderer.image(for: lastGeminiUsage, style: badgeStyle, appearance: button.effectiveAppearance)
+                button.setAccessibilityLabel(lastGeminiUsage.antigravityBadgeDescription)
             } else {
                 button.image = UsageBadgeRenderer.placeholderImage(style: badgeStyle, appearance: button.effectiveAppearance)
-                button.setAccessibilityLabel("Codex 额度正在读取")
+                button.setAccessibilityLabel("Antigravity 每周额度正在读取")
             }
         }
     }

@@ -162,3 +162,20 @@ private func withTempDir(_ body: (URL) throws -> Void) throws {
     #expect(restored[2].percentText == "0%" && restored[2].showsProgressBar)
     #expect(try rows(common + ["new-window"]).last?.label == "new-window")
 }
+
+@Test func menuBarUsesAntigravityWindowsByID() throws {
+    let buckets = """
+        {"id":"antigravity-quota-summary-3p-weekly","label":"每周","remainingPercent":99},
+        {"id":"antigravity-quota-summary-gemini-argon-wtu-weekly","label":"每周","remainingPercent":75},
+        {"id":"secondary","label":"每周","remainingPercent":88},
+        {"id":"antigravity-quota-summary-gemini-5h","label":"5H","usedPercent":7.7}
+        """
+    func summary(_ rows: String) throws -> GeminiUsageSummary {
+        try GeminiUsageFetcher.decodeSummary(from: Data("{\"buckets\":[\(rows)]}".utf8))
+    }
+    let missing = try summary(buckets)
+    #expect(missing.antigravityWeeklyRemaining == nil)
+    #expect(missing.antigravityFiveHourRemaining == 92)
+    let exhausted = try summary(buckets + #",{"id":"antigravity-quota-summary-gemini-weekly","label":"每周","usedPercent":100}"#)
+    #expect(exhausted.antigravityBadgeDescription == "Antigravity 每周剩余 0% · 5 小时剩余 92%")
+}

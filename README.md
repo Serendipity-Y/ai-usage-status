@@ -19,9 +19,10 @@
   - **右上（Codex）**：展示可用重置次数（`availableCount`）、`5 小时` 与 `每周` 剩余百分比进度条及重置时间（与左上 `Gemini` 等高齐平）；
   - **右下（其他工具）**：以三列对齐方式展示 **WorkBuddy / Trae / Qoder / AgentRouter** 剩余积分/美元余额与签到状态（与左下 `Antigravity` 等高齐平）；
   - **底部通栏**：展示下次后台自动刷新时间。
+- 菜单栏优先显示 Antigravity 的 Gemini 每周剩余百分比。紧凑单环只显示每周额度，双环和大字模式依次显示每周与 5 小时额度。
 - **三种菜单栏图标样式**：点击菜单栏图标 → **Display Style** 可自由切换：
   - **Compact Ring (7D)**（`30pt` 宽紧凑单环，专为刘海屏右侧菜单栏优化，不易被遮挡）；
-  - **Double Ring**（5H / 7D 双圆环）；
+  - **Double Ring**（左环 7D，右环 5H）；
   - **Large Readout**（大字百分比读数）。
 - **多宿主自动启停联动（可选）**：安装本地 `quota-lifecycle` 守护进程后，默认监听本机已安装的 `ChatGPT.app`、`Gemini.app`、`Antigravity.app`——**任意一个在运行即保持显示，三者全部退出后自动关闭**。
 - **隐私与安全边界**（详见 [PRIVACY.md](PRIVACY.md) 与 [SECURITY.md](SECURITY.md)）：
@@ -83,20 +84,21 @@ python3 lifecycle/install.py install \
 
 ## 可选：接入 Antigravity 与其他工具数据源
 
-悬浮窗左栏（Gemini）与右栏下区（WorkBuddy / Trae / Qoder）支持通过用户自主配置的本地数据源并发独立刷新，解析优先级如下：
+菜单栏的 Antigravity 额度、悬浮卡左下角的 Antigravity 额度及右下角的其他工具余额，取自同一个本地数据源。应用按以下顺序选择数据源。
 
 1. 环境变量 `GEMINI_QUOTA_COMMAND`（指向本机可执行脚本，stdout 输出 JSON）
 2. 环境变量 `GEMINI_QUOTA_FILE`（指向本机 JSON 文件）
 3. 默认本地快照文件：`~/Library/Application Support/CodexUsageStatus/gemini-quota.json`
 4. 默认本地采集脚本：`~/Library/Application Support/CodexUsageStatus/bin/fetch-gemini-quota.py`
 
-JSON 数据协议示例：
+菜单栏通过以下两个 `id` 识别 Antigravity 的每周和 5 小时额度。
 
 ```json
 {
   "plan": "Antigravity",
   "buckets": [
-    { "id": "gemini-5h", "label": "5 小时", "remainingPercent": 82, "resetsAt": 1795435200 }
+    { "id": "antigravity-quota-summary-gemini-weekly", "label": "每周", "remainingPercent": 74, "resetsAt": 1796040000 },
+    { "id": "antigravity-quota-summary-gemini-5h", "label": "5 小时", "remainingPercent": 82, "resetsAt": 1795435200 }
   ],
   "extraProviders": [
     { "id": "workbuddy", "name": "WorkBuddy", "valueText": "2,500 积分", "statusText": "今日已签 · 10:00" }
@@ -119,6 +121,7 @@ JSON 数据协议示例：
 An unofficial native macOS menu-bar companion for viewing **Codex**, **Gemini / Antigravity**, and optional external tool balances (**WorkBuddy / Trae / Qoder**) at a glance.
 
 - **2×2 hover card**: Top-left shows Gemini chat 5-hour and weekly limits (synced silently via the optional Chrome extension bridge in `integrations/gemini-chat/`, with macOS Accessibility fallback); bottom-left shows Antigravity quotas; top-right shows Codex 5-hour / weekly windows and reset credits; bottom-right shows tabular credit/USD balances for WorkBuddy / Trae / Qoder / AgentRouter.
+- The menu bar shows Antigravity Gemini quota remaining. Compact Ring shows the weekly window. Double Ring and Large Readout show weekly first, then five-hour.
 - **Display styles**: Switch between **Compact Ring (7D)** (`30pt` notch-friendly single ring), **Double Ring**, and **Large Readout**.
 - **Privacy & safety**: Codex usage comes exclusively from local `codex app-server` (`account/rateLimits/read`). The app itself never reads credential files, browser cookies, Keychain items, or OAuth tokens. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 - **Multi-host lifecycle helper**: Optional per-user listener (`lifecycle/install.py`) keeps the badge running while any configured host app (`ChatGPT.app`, `Gemini.app`, `Antigravity.app`) is active and quits cleanly once all exit.

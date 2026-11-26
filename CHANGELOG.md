@@ -1,5 +1,17 @@
 # 更新记录 / Changelog
 
+## 未发布 / Unreleased — 2026-11-27
+
+### 中文
+
+- 菜单栏现在显示 Antigravity 的 Gemini 剩余额度。双环和大字模式左侧为每周（7D），右侧为 5 小时（5H）。紧凑单环只显示每周额度。
+- Codex 额度仍可在悬浮卡中查看。Codex 刷新失败时，Antigravity 图标继续独立更新。某个额度窗口缺失时，对应位置显示 `--`，额度耗尽时显示 `0`。
+
+### English
+
+- The menu bar now shows remaining Antigravity Gemini quota. Double Ring and Large Readout show the weekly window (7D) on the left and the five-hour window (5H) on the right. Compact Ring shows weekly quota only.
+- Codex quota remains available in the hover card. The Antigravity badge continues updating if a Codex refresh fails. A missing window displays `--`, and an exhausted window displays `0`.
+
 ## v0.3.0 — 2026-11-24
 
 ### 中文

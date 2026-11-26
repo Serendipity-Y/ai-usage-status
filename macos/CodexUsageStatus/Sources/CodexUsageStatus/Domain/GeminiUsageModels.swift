@@ -142,6 +142,20 @@ struct GeminiUsageSummary: Sendable, Equatable {
         self.extraProviders = parsedExtras
     }
 
+    var antigravityWeeklyRemaining: Int? {
+        buckets.first { $0.id == "antigravity-quota-summary-gemini-weekly" }?.remainingPercent
+    }
+
+    var antigravityFiveHourRemaining: Int? {
+        buckets.first { $0.id == "antigravity-quota-summary-gemini-5h" }?.remainingPercent
+    }
+
+    var antigravityBadgeDescription: String {
+        let weekly = antigravityWeeklyRemaining.map { "剩余 \($0)%" } ?? "暂无数据"
+        let fiveHour = antigravityFiveHourRemaining.map { "剩余 \($0)%" } ?? "暂无数据"
+        return "Antigravity 每周\(weekly) · 5 小时\(fiveHour)"
+    }
+
     var cliSummary: String {
         let parts = buckets.prefix(5).map { bucket in
             let pct = bucket.remainingPercent.map { "\($0)%" } ?? "--"

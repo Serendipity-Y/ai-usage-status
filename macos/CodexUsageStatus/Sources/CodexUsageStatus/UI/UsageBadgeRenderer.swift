@@ -16,26 +16,26 @@ enum UsageBadgeRenderer {
         }
     }
 
-    static func image(for usage: UsageSummary, style: BadgeStyle, appearance: NSAppearance) -> NSImage {
+    static func image(for usage: GeminiUsageSummary, style: BadgeStyle, appearance: NSAppearance) -> NSImage {
         render(style: style,
-            left: BadgeValue(label: "5H", percent: usage.fiveHour.remainingPercent),
-            right: BadgeValue(label: "7D", percent: usage.weekly.remainingPercent),
+            left: BadgeValue(label: "7D", percent: usage.antigravityWeeklyRemaining),
+            right: BadgeValue(label: "5H", percent: usage.antigravityFiveHourRemaining),
             appearance: appearance
         )
     }
 
     static func placeholderImage(style: BadgeStyle, appearance: NSAppearance) -> NSImage {
         render(style: style,
-            left: BadgeValue(label: "5H", percent: nil),
-            right: BadgeValue(label: "7D", percent: nil),
+            left: BadgeValue(label: "7D", percent: nil),
+            right: BadgeValue(label: "5H", percent: nil),
             appearance: appearance
         )
     }
 
     static func errorImage(style: BadgeStyle, appearance: NSAppearance) -> NSImage {
         render(style: style,
-            left: BadgeValue(label: "5H", percent: nil, overrideText: "?"),
-            right: BadgeValue(label: "7D", percent: nil, overrideText: "?"),
+            left: BadgeValue(label: "7D", percent: nil, overrideText: "?"),
+            right: BadgeValue(label: "5H", percent: nil, overrideText: "?"),
             appearance: appearance,
             forcedColor: .systemRed
         )
@@ -54,7 +54,7 @@ enum UsageBadgeRenderer {
         case .largeReadout:
             return renderLargeReadout(left: left, right: right, appearance: appearance, forcedColor: forcedColor)
         case .compactRing:
-            return renderCompactRing(value: right, appearance: appearance, forcedColor: forcedColor)
+            return renderCompactRing(value: left, appearance: appearance, forcedColor: forcedColor)
         }
     }
 
