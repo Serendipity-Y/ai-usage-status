@@ -32,9 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lastUsage: UsageSummary?
     private var lastRefreshDate: Date?
     private var lastError: Error?
-    private var lastGeminiUsage: GeminiUsageSummary?
-    private var lastGeminiRefreshDate: Date?
-    private var lastGeminiError: GeminiFetchError?
+    private var gemini = GeminiRefreshState()
     private var buttonTrackingArea: NSTrackingArea?
     private var hoverShowWork: DispatchWorkItem?
     private var hoverHideWork: DispatchWorkItem?
@@ -175,9 +173,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             isRefreshing: codexSchedule.isRefreshing,
             refreshFailed: lastError != nil,
             failureDescription: (lastError as? FetchError)?.briefDescription ?? "读取失败",
-            geminiUsage: lastGeminiUsage,
-            geminiLastRefreshDate: lastGeminiRefreshDate,
-            geminiError: lastGeminiError,
+            geminiUsage: gemini.usage,
+            geminiLastRefreshDate: gemini.quotaReadAt,
+            geminiError: gemini.error,
             geminiIsRefreshing: geminiSchedule.isRefreshing,
             chatQuota: hasGeminiChat ? chatQuota : nil,
             chatUnavailable: hasGeminiChat ? chatUnavailable : nil
@@ -218,12 +216,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let lastRefresh = lastRefreshDate.map { dateFormatter.string(from: $0) } ?? "Never"
         let geminiSource = GeminiUsageFetcher.resolvedSource().displayDescription
         let geminiStatus: String
-        if let lastGeminiUsage {
-            geminiStatus = lastGeminiUsage.cliSummary
-        } else if let lastGeminiError {
-            geminiStatus = lastGeminiError.briefDescription
+        if let error = gemini.error {
+            geminiStatus = [error.briefDescription, gemini.usage?.cliSummary].compactMap { $0 }.joined(separator: " · ")
         } else {
-            geminiStatus = "Waiting for first refresh"
+            geminiStatus = gemini.usage?.cliSummary ?? "Waiting for first refresh"
         }
         let message = """
         \(status)
@@ -280,6 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             chatUnavailable = nil
             try? snapshot.save()
         case .unavailable(let reason):
+            if let snapshot = chatQuota, !GeminiChatQuota.acceptsTimestamp(snapshot.readAt) { chatQuota = nil }
             if let cached = GeminiChatQuota.cached(),
                chatQuota == nil || cached.readAt > (chatQuota?.readAt ?? .distantPast) {
                 chatQuota = cached
@@ -318,16 +315,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refreshGemini() async -> Bool {
         defer { renderCurrentBadge() }
         do {
-            lastGeminiUsage = try await GeminiUsageFetcher.fetch()
-            lastGeminiRefreshDate = Date()
-            lastGeminiError = nil
+            let incoming = try await GeminiUsageFetcher.fetch()
+            gemini.accept(incoming)
             return true
         } catch {
             let failure = error as? GeminiFetchError ?? .invalidOutput
-            lastGeminiError = failure
+            gemini.fail(failure)
             if failure == .notConfigured {
-                lastGeminiUsage = nil
-                lastGeminiRefreshDate = nil
                 return true // Poll at the normal interval for a newly configured optional source.
             }
             refreshLog.error("Gemini usage refresh failed: \(failure.briefDescription, privacy: .public)")
@@ -354,12 +348,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             button.title = ""
             button.toolTip = nil
 
-            if let lastGeminiError {
+            if let error = gemini.error, error != .quotaNotReported {
                 button.image = UsageBadgeRenderer.errorImage(style: badgeStyle, appearance: button.effectiveAppearance)
-                button.setAccessibilityLabel("Antigravity 额度更新失败：\(lastGeminiError.briefDescription)")
-            } else if let lastGeminiUsage {
-                button.image = UsageBadgeRenderer.image(for: lastGeminiUsage, style: badgeStyle, appearance: button.effectiveAppearance)
-                button.setAccessibilityLabel(lastGeminiUsage.antigravityBadgeDescription)
+                button.setAccessibilityLabel("Antigravity 额度更新失败：\(error.briefDescription)")
+            } else if let usage = gemini.usage {
+                let stale = gemini.error == .quotaNotReported && gemini.quotaReadAt != nil
+                button.image = UsageBadgeRenderer.image(for: usage, style: badgeStyle, appearance: button.effectiveAppearance, isStale: stale)
+                let status = stale ? " · 过期快照" : ""
+                button.setAccessibilityLabel(usage.antigravityBadgeDescription + status)
             } else {
                 button.image = UsageBadgeRenderer.placeholderImage(style: badgeStyle, appearance: button.effectiveAppearance)
                 button.setAccessibilityLabel("Antigravity 每周额度正在读取")

@@ -38,52 +38,49 @@ struct UsageSummary: Sendable {
             throw FetchError.invalidOutput
         }
 
-        let windows = [snapshot.primary, snapshot.secondary].compactMap { $0 }.map(UsageWindow.init)
-        let fiveHour = windows.first { approximately($0.windowDurationMins, 300) } ?? windows.first
-        let weekly = windows.first { approximately($0.windowDurationMins, 10080) } ?? windows.dropFirst().first
-
-        guard let fiveHour, let weekly else {
-            throw FetchError.invalidOutput
+        guard snapshot.primary != nil || snapshot.secondary != nil else { throw FetchError.invalidOutput }
+        let windows = [snapshot.primary, snapshot.secondary].compactMap { $0 }
+        func resolve(minutes: Double, legacy: RateLimitWindow?) -> UsageWindow {
+            let matched = windows.first { approximately($0.windowDurationMins, minutes) }
+            return UsageWindow(matched ?? (legacy?.windowDurationMins == nil ? legacy : nil))
         }
-
-        self.planType = snapshot.planType
-        self.fiveHour = fiveHour
-        self.weekly = weekly
+        planType = snapshot.planType
+        fiveHour = resolve(minutes: 300, legacy: snapshot.primary)
+        weekly = resolve(minutes: 10080, legacy: snapshot.secondary)
         availableResetCount = response.rateLimitResetCredits?.availableCount.flatMap { $0 >= 0 ? $0 : nil }
     }
 
     var menuTitle: String {
-        "5h \(fiveHour.remainingPercent)% 7d \(weekly.remainingPercent)%"
+        "5h \(fiveHour.percentText) 7d \(weekly.percentText)"
     }
 
     var verboseTitle: String {
-        "Codex usage: 5-hour \(fiveHour.remainingPercent)% · weekly \(weekly.remainingPercent)%"
+        "Codex usage: 5-hour \(fiveHour.percentText) · weekly \(weekly.percentText)"
     }
 
     func tooltip(formatter: DateFormatter) -> String {
         let fiveHourReset = fiveHour.resetsAt.map { formatter.string(from: $0) } ?? "unknown"
         let weeklyReset = weekly.resetsAt.map { formatter.string(from: $0) } ?? "unknown"
-        return "Codex usage\n5-hour remaining: \(fiveHour.remainingPercent)% · resets \(fiveHourReset)\nWeekly remaining: \(weekly.remainingPercent)% · resets \(weeklyReset)"
+        return "Codex usage\n5-hour remaining: \(fiveHour.percentText) · resets \(fiveHourReset)\nWeekly remaining: \(weekly.percentText) · resets \(weeklyReset)"
     }
 }
 
 struct UsageWindow: Sendable {
-    let remainingPercent: Int
-    let windowDurationMins: Double?
+    let remainingPercent: Int?
     let resetsAt: Date?
 
-    init(_ window: RateLimitWindow) {
-        let used = min(100, max(0, window.usedPercent ?? 0))
-        remainingPercent = min(100, max(0, Int((100 - used).rounded())))
-        windowDurationMins = window.windowDurationMins
-        resetsAt = window.resetsAt.map { Date(timeIntervalSince1970: $0) }
+    var percentText: String { remainingPercent.map { "\($0)%" } ?? "--" }
+
+    init(_ window: RateLimitWindow?) {
+        remainingPercent = window?.usedPercent.map { Int((100 - min(100, max(0, $0))).rounded()) }
+        resetsAt = window?.resetsAt.map { Date(timeIntervalSince1970: $0) }
     }
 
     func displayText(formatter: DateFormatter) -> String {
         guard let resetsAt else {
-            return "\(remainingPercent)% remaining, reset unknown"
+            return "\(percentText) remaining, reset unknown"
         }
-        return "\(remainingPercent)% remaining, resets \(formatter.string(from: resetsAt))"
+        return "\(percentText) remaining, resets \(formatter.string(from: resetsAt))"
     }
 }
 

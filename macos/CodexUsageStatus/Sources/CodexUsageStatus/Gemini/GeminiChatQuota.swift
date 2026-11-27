@@ -83,6 +83,11 @@ struct GeminiChatQuota: Codable, Equatable, Sendable {
         case missing
     }
 
+    // Match the clock skew accepted by the Chrome Native Messaging host.
+    static func acceptsTimestamp(_ observed: Date, now: Date = Date()) -> Bool {
+        observed.timeIntervalSince(now) <= 10
+    }
+
     static let chromeFreshnessWindow: TimeInterval = 15 * 60
 
     static var chromeCacheURL: URL {
@@ -110,6 +115,7 @@ struct GeminiChatQuota: Codable, Equatable, Sendable {
             return .missing
         }
         let observed = Date(timeIntervalSince1970: payload.observedAt)
+        guard acceptsTimestamp(observed, now: now) else { return .missing }
         let currentReset = payload.current.resetsAt.flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil }
         let weeklyReset = payload.weekly.resetsAt.flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil }
         let quota = GeminiChatQuota(
@@ -137,17 +143,18 @@ struct GeminiChatQuota: Codable, Equatable, Sendable {
             .appendingPathComponent("CodexUsageStatus/gemini-chat-last-read.json")
     }
 
-    static func cached() -> Self? {
+    static func cached(now: Date = Date(), chromeURL: URL = chromeCacheURL, savedURL: URL = cacheURL) -> Self? {
         let chrome: Self?
-        switch readChromeReport() {
+        switch readChromeReport(at: chromeURL, now: now) {
         case .fresh(let q), .stale(let q):
             chrome = q
         case .missing:
             chrome = nil
         }
         let saved: Self?
-        if let data = try? Data(contentsOf: cacheURL),
+        if let data = try? Data(contentsOf: savedURL),
            let value = try? JSONDecoder().decode(Self.self, from: data),
+           acceptsTimestamp(value.readAt, now: now),
            (0...100).contains(value.current.used), (0...100).contains(value.weekly.used) {
             saved = value
         } else {
@@ -165,8 +172,11 @@ struct GeminiChatQuota: Codable, Equatable, Sendable {
         }
     }
 
-    func save() throws {
-        let url = Self.cacheURL
+    func save(to url: URL = Self.cacheURL) throws {
+        if isFromChrome, let data = try? Data(contentsOf: url),
+           let saved = try? JSONDecoder().decode(Self.self, from: data),
+           Self.acceptsTimestamp(saved.readAt),
+           saved == self || saved.readAt > readAt { return }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(self).write(to: url, options: .atomic)
     }

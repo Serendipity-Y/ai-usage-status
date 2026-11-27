@@ -76,3 +76,23 @@ private func usage(_ resetJSON: String = "") throws -> UsageSummary {
     #expect((1...5).map { AppConfig.retryInterval(afterFailures: $0) } == [60, 120, 300, 300, 300])
     #expect(AppConfig.retryInterval(afterFailures: 1) >= AppConfig.minimumRefreshInterval)
 }
+
+@Test func keepsIncompleteAndLegacyCodexWindowsInTheirOwnSlots() throws {
+    func title(_ fields: String) throws -> String {
+        let data = Data(("{\"rateLimits\":{" + fields + "}}").utf8)
+        return try UsageSummary(response: JSONDecoder().decode(RateLimitsResponse.self, from: data)).menuTitle
+    }
+    #expect(try title(#""secondary":{"windowDurationMins":10080,"usedPercent":23}"#) == "5h -- 7d 77%")
+    #expect(try title(#""primary":{"windowDurationMins":300},"secondary":{"usedPercent":0}"#) == "5h -- 7d 100%")
+    #expect(try title(#""primary":{"usedPercent":100},"secondary":{"usedPercent":0}"#) == "5h 0% 7d 100%")
+    #expect(try title(#""primary":{"windowDurationMins":10080,"usedPercent":100},"secondary":{"windowDurationMins":300,"usedPercent":0}"#) == "5h 100% 7d 0%")
+    #expect(try title(#""primary":{"windowDurationMins":1440,"usedPercent":50}"#) == "5h -- 7d --")
+}
+
+@Test func roundsCodexRemainingAfterSubtraction() throws {
+    let pairs = [(0.5, 100), (22.5, 78), (99.5, 1), (100.0, 0), (0.0, 100)]
+    for (used, remaining) in pairs {
+        let window = UsageWindow(RateLimitWindow(usedPercent: used, windowDurationMins: 300, resetsAt: nil))
+        #expect(window.remainingPercent == remaining)
+    }
+}

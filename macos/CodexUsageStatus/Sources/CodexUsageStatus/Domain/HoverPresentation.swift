@@ -205,7 +205,7 @@ struct HoverPresentation {
                 statusText = "\(geminiError.briefDescription) · 暂无数据"
             }
             gemini = GeminiHoverPresentation(
-                badgeText: geminiUsage?.plan ?? "读取异常",
+                badgeText: geminiError == .quotaNotReported && geminiLastRefreshDate != nil ? "过期快照" : (geminiUsage?.plan ?? "读取异常"),
                 isBadgeWarning: true,
                 rows: geminiRows,
                 emptyHint: nil,

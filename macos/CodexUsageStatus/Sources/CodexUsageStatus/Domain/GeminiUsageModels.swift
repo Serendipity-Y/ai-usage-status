@@ -95,7 +95,7 @@ struct GeminiUsageBucket: Sendable, Equatable {
     }
 
     private static func clampPercent(_ value: Double) -> Int {
-        min(100, max(0, Int(value.rounded())))
+        Int(min(100, max(0, value)).rounded())
     }
 }
 
@@ -126,13 +126,28 @@ struct GeminiUsageSummary: Sendable, Equatable {
     let plan: String?
     let updatedAt: Date?
     let buckets: [GeminiUsageBucket]
-    let extraProviders: [ExternalToolQuota]
+    fileprivate(set) var extraProviders: [ExternalToolQuota]
 
     init(payload: GeminiQuotaPayload) throws {
         let parsedBuckets = (payload.buckets ?? []).enumerated().map { index, item in
             GeminiUsageBucket(payload: item, index: index)
         }
-        let parsedExtras = (payload.extraProviders ?? []).map(ExternalToolQuota.init)
+        var parsedExtras: [ExternalToolQuota] = []
+        var positions: [String: Int] = [:]
+        for item in (payload.extraProviders ?? []).map(ExternalToolQuota.init) {
+            let key = item.id.lowercased()
+            guard !key.isEmpty else { continue }
+            if let index = positions[key] {
+                let previous = parsedExtras[index]
+                if previous.valueText == nil && previous.remainingPercent == nil &&
+                    (item.valueText != nil || item.remainingPercent != nil) {
+                    parsedExtras[index] = item
+                }
+            } else {
+                positions[key] = parsedExtras.count
+                parsedExtras.append(item)
+            }
+        }
         guard !parsedBuckets.isEmpty || !parsedExtras.isEmpty else {
             throw GeminiFetchError.invalidOutput
         }
@@ -153,7 +168,7 @@ struct GeminiUsageSummary: Sendable, Equatable {
     var antigravityBadgeDescription: String {
         let weekly = antigravityWeeklyRemaining.map { "剩余 \($0)%" } ?? "暂无数据"
         let fiveHour = antigravityFiveHourRemaining.map { "剩余 \($0)%" } ?? "暂无数据"
-        return "Antigravity 每周\(weekly) · 5 小时\(fiveHour)"
+        return "Antigravity 5 小时\(fiveHour) · 每周\(weekly)"
     }
 
     var cliSummary: String {
@@ -169,8 +184,35 @@ struct GeminiUsageSummary: Sendable, Equatable {
     }
 }
 
+struct GeminiRefreshState {
+    private(set) var usage: GeminiUsageSummary?
+    private(set) var quotaReadAt: Date?
+    private(set) var error: GeminiFetchError?
+
+    mutating func accept(_ incoming: GeminiUsageSummary, at now: Date = Date()) {
+        if incoming.buckets.isEmpty {
+            if usage == nil { usage = incoming }
+            usage?.extraProviders = incoming.extraProviders
+            error = .quotaNotReported
+            return
+        }
+        usage = incoming
+        quotaReadAt = incoming.updatedAt ?? now
+        error = nil
+    }
+
+    mutating func fail(_ failure: GeminiFetchError) {
+        error = failure
+        if failure == .notConfigured {
+            usage = nil
+            quotaReadAt = nil
+        }
+    }
+}
+
 enum GeminiFetchError: LocalizedError, Equatable {
     case notConfigured
+    case quotaNotReported
     case commandNotFound(String)
     case timeout
     case commandFailed(Int32)
@@ -180,6 +222,7 @@ enum GeminiFetchError: LocalizedError, Equatable {
     var briefDescription: String {
         switch self {
         case .notConfigured: return "未配置数据源"
+        case .quotaNotReported: return "本次未返回额度"
         case .commandNotFound: return "未找到采集命令"
         case .timeout: return "读取超时"
         case .commandFailed: return "采集命令执行失败"
@@ -190,6 +233,8 @@ enum GeminiFetchError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
+        case .quotaNotReported:
+            return "The source returned external tool balances only"
         case .notConfigured:
             return "Gemini quota source is not configured"
         case .commandNotFound(let path):

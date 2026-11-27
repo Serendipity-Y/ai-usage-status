@@ -19,10 +19,10 @@
   - **右上（Codex）**：展示可用重置次数（`availableCount`）、`5 小时` 与 `每周` 剩余百分比进度条及重置时间（与左上 `Gemini` 等高齐平）；
   - **右下（其他工具）**：以三列对齐方式展示 **WorkBuddy / Trae / Qoder / AgentRouter** 剩余积分/美元余额与签到状态（与左下 `Antigravity` 等高齐平）；
   - **底部通栏**：展示下次后台自动刷新时间。
-- 菜单栏优先显示 Antigravity 的 Gemini 每周剩余百分比。紧凑单环只显示每周额度，双环和大字模式依次显示每周与 5 小时额度。
+- 菜单栏优先显示 Antigravity 的 Gemini 每周剩余百分比。紧凑单环只显示每周额度，双环和大字模式左侧显示 5 小时额度，右侧显示每周额度。
 - **三种菜单栏图标样式**：点击菜单栏图标 → **Display Style** 可自由切换：
   - **Compact Ring (7D)**（`30pt` 宽紧凑单环，专为刘海屏右侧菜单栏优化，不易被遮挡）；
-  - **Double Ring**（左环 7D，右环 5H）；
+  - **Double Ring**（左环 5H，右环 7D）；
   - **Large Readout**（大字百分比读数）。
 - **多宿主自动启停联动（可选）**：安装本地 `quota-lifecycle` 守护进程后，默认监听本机已安装的 `ChatGPT.app`、`Gemini.app`、`Antigravity.app`——**任意一个在运行即保持显示，三者全部退出后自动关闭**。
 - **隐私与安全边界**（详见 [PRIVACY.md](PRIVACY.md) 与 [SECURITY.md](SECURITY.md)）：
@@ -121,7 +121,7 @@ python3 lifecycle/install.py install \
 An unofficial native macOS menu-bar companion for viewing **Codex**, **Gemini / Antigravity**, and optional external tool balances (**WorkBuddy / Trae / Qoder**) at a glance.
 
 - **2×2 hover card**: Top-left shows Gemini chat 5-hour and weekly limits (synced silently via the optional Chrome extension bridge in `integrations/gemini-chat/`, with macOS Accessibility fallback); bottom-left shows Antigravity quotas; top-right shows Codex 5-hour / weekly windows and reset credits; bottom-right shows tabular credit/USD balances for WorkBuddy / Trae / Qoder / AgentRouter.
-- The menu bar shows Antigravity Gemini quota remaining. Compact Ring shows the weekly window. Double Ring and Large Readout show weekly first, then five-hour.
+- The menu bar shows Antigravity Gemini quota remaining. Compact Ring shows the weekly window. Double Ring and Large Readout show five-hour on the left and weekly on the right.
 - **Display styles**: Switch between **Compact Ring (7D)** (`30pt` notch-friendly single ring), **Double Ring**, and **Large Readout**.
 - **Privacy & safety**: Codex usage comes exclusively from local `codex app-server` (`account/rateLimits/read`). The app itself never reads credential files, browser cookies, Keychain items, or OAuth tokens. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 - **Multi-host lifecycle helper**: Optional per-user listener (`lifecycle/install.py`) keeps the badge running while any configured host app (`ChatGPT.app`, `Gemini.app`, `Antigravity.app`) is active and quits cleanly once all exit.

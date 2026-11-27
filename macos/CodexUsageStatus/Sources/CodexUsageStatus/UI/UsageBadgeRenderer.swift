@@ -16,26 +16,27 @@ enum UsageBadgeRenderer {
         }
     }
 
-    static func image(for usage: GeminiUsageSummary, style: BadgeStyle, appearance: NSAppearance) -> NSImage {
+    static func image(for usage: GeminiUsageSummary, style: BadgeStyle, appearance: NSAppearance, isStale: Bool = false) -> NSImage {
         render(style: style,
-            left: BadgeValue(label: "7D", percent: usage.antigravityWeeklyRemaining),
-            right: BadgeValue(label: "5H", percent: usage.antigravityFiveHourRemaining),
-            appearance: appearance
+            left: BadgeValue(label: "5H", percent: usage.antigravityFiveHourRemaining),
+            right: BadgeValue(label: "7D", percent: usage.antigravityWeeklyRemaining),
+            appearance: appearance,
+            forcedColor: isStale ? .secondaryLabelColor : nil
         )
     }
 
     static func placeholderImage(style: BadgeStyle, appearance: NSAppearance) -> NSImage {
         render(style: style,
-            left: BadgeValue(label: "7D", percent: nil),
-            right: BadgeValue(label: "5H", percent: nil),
+            left: BadgeValue(label: "5H", percent: nil),
+            right: BadgeValue(label: "7D", percent: nil),
             appearance: appearance
         )
     }
 
     static func errorImage(style: BadgeStyle, appearance: NSAppearance) -> NSImage {
         render(style: style,
-            left: BadgeValue(label: "7D", percent: nil, overrideText: "?"),
-            right: BadgeValue(label: "5H", percent: nil, overrideText: "?"),
+            left: BadgeValue(label: "5H", percent: nil, overrideText: "?"),
+            right: BadgeValue(label: "7D", percent: nil, overrideText: "?"),
             appearance: appearance,
             forcedColor: .systemRed
         )
@@ -54,7 +55,7 @@ enum UsageBadgeRenderer {
         case .largeReadout:
             return renderLargeReadout(left: left, right: right, appearance: appearance, forcedColor: forcedColor)
         case .compactRing:
-            return renderCompactRing(value: left, appearance: appearance, forcedColor: forcedColor)
+            return renderCompactRing(value: right, appearance: appearance, forcedColor: forcedColor)
         }
     }
 

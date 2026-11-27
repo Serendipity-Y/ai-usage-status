@@ -11,49 +11,46 @@ export function normalizeUsage(rateLimitResponse, now = new Date()) {
     throw new Error("Codex rate-limit response did not include a usable snapshot.");
   }
 
-  const windows = [snapshot.primary, snapshot.secondary]
-    .filter(Boolean)
-    .map((window) => normalizeWindow(window, now));
+  const [primary, secondary] = [snapshot.primary, snapshot.secondary]
+    .map(window => window ? normalizeWindow(window, now) : null);
+  const windows = [primary, secondary].filter(Boolean);
 
-  const fiveHour = windows.find((window) => approximately(window.windowDurationMins, FIVE_HOURS_MINS));
-  const weekly = windows.find((window) => approximately(window.windowDurationMins, WEEK_MINS));
+  function resolve(minutes, legacy) {
+    return windows.find(window => approximately(window.windowDurationMins, minutes))
+      ?? (legacy?.windowDurationMins == null ? legacy : null);
+  }
 
   return {
     limitId: snapshot.limitId ?? "codex",
     planType: snapshot.planType ?? null,
-    fiveHour: fiveHour ?? windows[0] ?? null,
-    weekly: weekly ?? windows[1] ?? null,
+    fiveHour: resolve(FIVE_HOURS_MINS, primary),
+    weekly: resolve(WEEK_MINS, secondary),
     windows,
   };
 }
 
+function percentText(window) {
+  return window?.remainingPercent == null ? "--" : String(window.remainingPercent) + "%";
+}
+
 export function formatMenuTitle(usage) {
-  const parts = [];
-  if (usage.fiveHour) {
-    parts.push(`5h ${usage.fiveHour.remainingPercent}%`);
-  }
-  if (usage.weekly) {
-    parts.push(`7d ${usage.weekly.remainingPercent}%`);
-  }
-  return parts.length > 0 ? `Codex ${parts.join(" ")}` : "Codex usage";
+  return "Codex 5h " + percentText(usage.fiveHour) + " 7d " + percentText(usage.weekly);
 }
 
 export function formatTextStatus(usage) {
-  const lines = [formatMenuTitle(usage)];
-  if (usage.fiveHour) {
-    lines.push(`5-hour remaining: ${usage.fiveHour.remainingPercent}%`);
-    lines.push(`5-hour reset: ${formatReset(usage.fiveHour.resetsAt)}`);
-  }
-  if (usage.weekly) {
-    lines.push(`Weekly remaining: ${usage.weekly.remainingPercent}%`);
-    lines.push(`Weekly reset: ${formatReset(usage.weekly.resetsAt)}`);
-  }
-  return lines.join("\n");
+  return [
+    formatMenuTitle(usage),
+    "5-hour remaining: " + percentText(usage.fiveHour),
+    "5-hour reset: " + formatReset(usage.fiveHour?.resetsAt),
+    "Weekly remaining: " + percentText(usage.weekly),
+    "Weekly reset: " + formatReset(usage.weekly?.resetsAt),
+  ].join("\n");
 }
 
 function normalizeWindow(window, now) {
-  const usedPercent = clampPercent(toNumber(window.usedPercent));
-  const remainingPercent = clampPercent(100 - usedPercent);
+  const rawUsed = toNumber(window.usedPercent);
+  const remainingPercent = rawUsed === null ? null : clampPercent(100 - rawUsed);
+  const usedPercent = remainingPercent === null ? null : 100 - remainingPercent;
   const resetsAt = typeof window.resetsAt === "number" ? new Date(window.resetsAt * 1000) : null;
   return {
     usedPercent,

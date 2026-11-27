@@ -87,3 +87,52 @@ import Testing
     #expect(snapshot.isFromChrome)
     #expect(snapshot.current.used == 12 && snapshot.weekly.used == 5)
 }
+
+@Test func duplicateChromeSnapshotsDoNotRewriteOrRollBackCache() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let file = dir.appendingPathComponent("snapshot.json")
+    let window = GeminiChatQuota.Window(used: 23, reset: nil)
+    func sample(_ seconds: Double) -> GeminiChatQuota {
+        GeminiChatQuota(current: window, weekly: window, readAt: Date(timeIntervalSince1970: seconds),
+                        pageUpdate: nil, source: "chrome")
+    }
+    try sample(200).save(to: file)
+    let marker = Date(timeIntervalSince1970: 500)
+    try FileManager.default.setAttributes([.modificationDate: marker], ofItemAtPath: file.path)
+    try sample(200).save(to: file)
+    try sample(100).save(to: file)
+    let attrs = try FileManager.default.attributesOfItem(atPath: file.path)
+    #expect(attrs[.modificationDate] as? Date == marker)
+    try sample(300).save(to: file)
+    let saved = try JSONDecoder().decode(GeminiChatQuota.self, from: Data(contentsOf: file))
+    #expect(saved == sample(300))
+}
+
+@Test func chromeClockSkewBoundaryAndFallback() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let file = dir.appendingPathComponent("chrome.json")
+    let saved = dir.appendingPathComponent("last-read.json")
+    let now = Date(timeIntervalSince1970: 1000)
+    func report(_ time: Int) -> Data {
+        Data("{\"observedAt\":\(time),\"current\":{\"used\":4},\"weekly\":{\"used\":1}}".utf8)
+    }
+    guard case .fresh = GeminiChatQuota.parseChromeReport(from: report(1010), now: now) else {
+        Issue.record("Ten seconds of clock skew should be accepted")
+        return
+    }
+    let bad = report(1011)
+    #expect(GeminiChatQuota.parseChromeReport(from: bad, now: now) == .missing)
+    try bad.write(to: file)
+    let window = GeminiChatQuota.Window(used: 1, reset: nil)
+    let pane = GeminiChatQuota(current: window, weekly: window, readAt: now, pageUpdate: nil, source: "pane")
+    let reading = GeminiChatPane.readBest(chromeURL: file, now: now) { .snapshot(pane) }
+    guard case .snapshot(let value) = reading else { Issue.record("Expected pane fallback"); return }
+    #expect(value == pane)
+    let future = GeminiChatQuota(current: window, weekly: window, readAt: now.addingTimeInterval(86400),
+                                 pageUpdate: nil, source: "chrome")
+    try JSONEncoder().encode(future).write(to: saved)
+    #expect(GeminiChatQuota.cached(now: now, chromeURL: file, savedURL: saved) == nil)
+}

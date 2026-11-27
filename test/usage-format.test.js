@@ -66,3 +66,20 @@ test("redacts sensitive app-server stderr snippets", () => {
   assert.match(redacted, /\[redacted-jwt\]/);
   assert.doesNotMatch(redacted, /should-not-survive|also-should-not-survive/);
 });
+
+test("keeps incomplete and legacy Codex windows in their own slots", () => {
+  const format = (primary, secondary) => formatMenuTitle(normalizeUsage({ rateLimits: { primary, secondary } }));
+  assert.equal(format(null, { windowDurationMins: 10080, usedPercent: 23 }), "Codex 5h -- 7d 77%");
+  assert.equal(format({ windowDurationMins: 300 }, { usedPercent: 0 }), "Codex 5h -- 7d 100%");
+  assert.equal(format({ usedPercent: 100 }, { usedPercent: 0 }), "Codex 5h 0% 7d 100%");
+  assert.equal(format({ windowDurationMins: 10080, usedPercent: 100 }, { windowDurationMins: 300, usedPercent: 0 }), "Codex 5h 100% 7d 0%");
+  assert.equal(format({ windowDurationMins: 1440, usedPercent: 50 }, null), "Codex 5h -- 7d --");
+});
+
+test("rounds remaining quota after subtraction, like the macOS app", () => {
+  for (const [usedPercent, remainingPercent] of [[0.5, 100], [22.5, 78], [99.5, 1], [100, 0], [0, 100]]) {
+    const usage = normalizeUsage({ rateLimits: { primary: { usedPercent } } });
+    assert.equal(usage.fiveHour.remainingPercent, remainingPercent);
+    assert.equal(usage.fiveHour.usedPercent + remainingPercent, 100);
+  }
+});

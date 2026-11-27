@@ -177,5 +177,49 @@ private func withTempDir(_ body: (URL) throws -> Void) throws {
     #expect(missing.antigravityWeeklyRemaining == nil)
     #expect(missing.antigravityFiveHourRemaining == 92)
     let exhausted = try summary(buckets + #",{"id":"antigravity-quota-summary-gemini-weekly","label":"每周","usedPercent":100}"#)
-    #expect(exhausted.antigravityBadgeDescription == "Antigravity 每周剩余 0% · 5 小时剩余 92%")
+    #expect(exhausted.antigravityBadgeDescription == "Antigravity 5 小时剩余 92% · 每周剩余 0%")
+}
+
+@Test func duplicateToolIDsKeepFirstBalanceAndOtherTools() throws {
+    let payload = """
+        {"extraProviders":[
+          {"id":"TraeCN","name":"Trae","statusText":"待同步"},
+          {"id":" traecn ","name":"Trae","remainingPercent":0},
+          {"id":"traecn","name":"Trae","remainingPercent":99},
+          {"id":"qoder","name":"Qoder","valueText":"40 积分"}
+        ]}
+        """
+    let summary = try GeminiUsageFetcher.decodeSummary(from: Data(payload.utf8))
+    #expect(summary.extraProviders.count == 2)
+    let card = HoverPresentation(usage: nil, nextRefreshDate: nil, lastRefreshDate: nil,
+        isRefreshing: false, refreshFailed: false, geminiUsage: summary)
+    #expect(card.extraToolRows.first { $0.label == "Trae" }?.percentText == "0%")
+    #expect(card.extraToolRows.first { $0.label == "Qoder" }?.percentText == "40 积分")
+}
+
+@Test func externalBalancesStayCurrentWhenAntigravityIsMissing() throws {
+    func snapshot(_ buckets: String, balance: String, observed: Int) throws -> GeminiUsageSummary {
+        let json = """
+        {"updatedAt":\(observed),"buckets":[\(buckets)],"extraProviders":[{"id":"qoder","name":"Qoder","valueText":"\(balance)"}]}
+        """
+        return try GeminiUsageFetcher.decodeSummary(from: Data(json.utf8))
+    }
+    let weekly = #"{"id":"antigravity-quota-summary-gemini-weekly","label":"每周","remainingPercent":0}"#
+    let fiveHour = #"{"id":"antigravity-quota-summary-gemini-5h","label":"5 小时","remainingPercent":82}"#
+    var state = GeminiRefreshState()
+    state.accept(try snapshot("", balance: "5", observed: 150))
+    #expect(state.quotaReadAt == nil && state.error == .quotaNotReported)
+    state.accept(try snapshot(fiveHour + "," + weekly, balance: "8", observed: 200))
+    state.accept(try snapshot("", balance: "12", observed: 300))
+    #expect(state.quotaReadAt == Date(timeIntervalSince1970: 200))
+    #expect(state.usage?.antigravityWeeklyRemaining == 0 && state.usage?.antigravityFiveHourRemaining == 82)
+    let card = HoverPresentation(usage: nil, nextRefreshDate: nil, lastRefreshDate: nil, isRefreshing: false,
+        refreshFailed: false, geminiUsage: state.usage, geminiLastRefreshDate: state.quotaReadAt, geminiError: state.error)
+    #expect(card.gemini.isBadgeWarning && card.gemini.badgeText == "过期快照")
+    #expect(card.extraToolRows.first { $0.label == "Qoder" }?.percentText == "12")
+    state.accept(try snapshot(fiveHour, balance: "13", observed: 400))
+    #expect(state.error == nil && state.usage?.antigravityWeeklyRemaining == nil)
+    #expect(state.quotaReadAt == Date(timeIntervalSince1970: 400))
+    state.fail(.notConfigured)
+    #expect(state.usage == nil && state.quotaReadAt == nil)
 }
