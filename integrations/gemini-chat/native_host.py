@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 """Chrome starts this host for one quota report and reads one framed acknowledgement."""
+import fcntl
 import json
 import math
 import os
@@ -56,14 +57,26 @@ def receive():
         raise ValueError("incomplete message")
     reading = normalize(json.loads(data), datetime.now(timezone.utc).timestamp())
     DEST.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode="w", dir=DEST.parent, delete=False) as out:
+    # Lock a stable sibling: replacing the snapshot changes its inode.
+    with DEST.with_suffix(".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
         try:
-            json.dump(reading, out, allow_nan=False)
-            out.flush()
-            os.replace(out.name, DEST)
-        finally:
-            if os.path.exists(out.name):
-                os.unlink(out.name)
+            previous = json.loads(DEST.read_text())
+            stamp = previous["observedAt"]
+            usable = all(type(previous[k]["used"]) is int and 0 <= previous[k]["used"] <= 100
+                         for k in ("current", "weekly"))
+            if usable and reading["observedAt"] <= stamp <= datetime.now(timezone.utc).timestamp() + 10:
+                return
+        except (FileNotFoundError, ValueError, KeyError, TypeError):
+            pass
+        with tempfile.NamedTemporaryFile(mode="w", dir=DEST.parent, delete=False) as out:
+            try:
+                json.dump(reading, out, allow_nan=False)
+                out.flush()
+                os.replace(out.name, DEST)
+            finally:
+                if os.path.exists(out.name):
+                    os.unlink(out.name)
 
 
 if __name__ == "__main__":

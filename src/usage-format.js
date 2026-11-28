@@ -2,12 +2,18 @@ const FIVE_HOURS_MINS = 5 * 60;
 const WEEK_MINS = 7 * 24 * 60;
 
 export function normalizeUsage(rateLimitResponse, now = new Date()) {
-  const snapshot =
-    rateLimitResponse?.rateLimitsByLimitId?.codex ??
-    rateLimitResponse?.rateLimits ??
-    firstSnapshot(rateLimitResponse?.rateLimitsByLimitId);
+  const byID = rateLimitResponse?.rateLimitsByLimitId ?? {};
+  const keyed = byID.codex;
+  const legacy = rateLimitResponse?.rateLimits;
+  const hasIDs = Object.keys(byID).length > 0;
+  const keyedMatches = keyed && (keyed.limitId == null || keyed.limitId === "codex");
+  const legacyMatches = legacy && (legacy.limitId === "codex" || (legacy.limitId == null && !hasIDs));
+  const snapshot = (keyedMatches && keyed) || (legacyMatches && legacy);
 
   if (!snapshot) {
+    if (hasIDs || legacy) {
+      return { limitId: "codex", planType: null, fiveHour: null, weekly: null, windows: [] };
+    }
     throw new Error("Codex rate-limit response did not include a usable snapshot.");
   }
 
@@ -59,13 +65,6 @@ function normalizeWindow(window, now) {
     resetsAt,
     staleAt: new Date(now.getTime()),
   };
-}
-
-function firstSnapshot(snapshotsById) {
-  if (!snapshotsById || typeof snapshotsById !== "object") {
-    return null;
-  }
-  return Object.values(snapshotsById)[0] ?? null;
 }
 
 function toNumber(value) {

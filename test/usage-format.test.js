@@ -83,3 +83,15 @@ test("rounds remaining quota after subtraction, like the macOS app", () => {
     assert.equal(usage.fiveHour.usedPercent + remainingPercent, 100);
   }
 });
+
+test("Codex accepts its own windows or an unlabelled legacy response", () => {
+  const windows = { secondary: { usedPercent: 23, windowDurationMins: 10080 } };
+  const other = { ...windows, limitId: "other" };
+  for (const data of [{ rateLimitsByLimitId: { other } }, { rateLimits: other },
+                      { rateLimitsByLimitId: { codex: other } },
+                      { rateLimitsByLimitId: { other }, rateLimits: windows }]) {
+    assert.equal(formatMenuTitle(normalizeUsage(data)), "Codex 5h -- 7d --");
+  }
+  assert.equal(normalizeUsage({ rateLimits: windows }).weekly.remainingPercent, 77);
+  assert.equal(normalizeUsage({ rateLimitsByLimitId: { other, codex: windows } }).weekly.remainingPercent, 77);
+});

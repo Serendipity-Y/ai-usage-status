@@ -157,6 +157,10 @@ struct GeminiUsageSummary: Sendable, Equatable {
         self.extraProviders = parsedExtras
     }
 
+    var hasBadgeWindow: Bool {
+        buckets.contains { $0.id == "antigravity-quota-summary-gemini-5h" || $0.id == "antigravity-quota-summary-gemini-weekly" }
+    }
+
     var antigravityWeeklyRemaining: Int? {
         buckets.first { $0.id == "antigravity-quota-summary-gemini-weekly" }?.remainingPercent
     }
@@ -190,14 +194,17 @@ struct GeminiRefreshState {
     private(set) var error: GeminiFetchError?
 
     mutating func accept(_ incoming: GeminiUsageSummary, at now: Date = Date()) {
-        if incoming.buckets.isEmpty {
-            if usage == nil { usage = incoming }
+        if !incoming.hasBadgeWindow {
+            if quotaReadAt == nil { usage = incoming }
             usage?.extraProviders = incoming.extraProviders
             error = .quotaNotReported
             return
         }
+        let observed = incoming.updatedAt ?? now
+        guard observed.timeIntervalSince(now) <= 10 else { return }
+        if let quotaReadAt, observed < quotaReadAt { return }
         usage = incoming
-        quotaReadAt = incoming.updatedAt ?? now
+        quotaReadAt = observed
         error = nil
     }
 

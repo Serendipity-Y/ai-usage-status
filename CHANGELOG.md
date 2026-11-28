@@ -1,9 +1,10 @@
 # 更新记录 / Changelog
 
-## 未发布 / Unreleased — 2026-11-27
+## 未发布 / Unreleased — 2026-11-28
 
 ### 中文
 
+- 新安装可通过内置 CodexBar CLI 适配器读取 Antigravity 双环。Codex 与 Antigravity 按来源识别额度，迟到的旧报告保留较新的读数。Chrome 接收器对并发写入使用同一时间顺序。
 - Codex 按窗口时长匹配 5 小时和每周额度，兼容省略时长的旧数据。缺失的百分比显示为 `--`。重复的平台记录优先保留有效余额，同一份 Chrome 快照只写入一次。
 - 菜单栏现在显示 Antigravity 的 Gemini 剩余额度。双环和大字模式左侧为 5 小时（5H），右侧为每周（7D）。紧凑单环只显示每周额度。
 - Codex 额度仍可在悬浮卡中查看。Codex 刷新失败时，Antigravity 图标继续独立更新。某个额度窗口缺失时，对应位置显示 `--`，额度耗尽时显示 `0`。
@@ -11,6 +12,7 @@
 
 ### English
 
+- New installations can read Antigravity windows through the built-in CodexBar CLI adapter. Codex and Antigravity validate quota identities. Older reports preserve newer readings, including concurrent Chrome reports.
 - Match Codex windows by duration, with positional fallback for older responses that omit it. Missing percentages display as `--`. Duplicate platform entries retain a reported balance, and repeated Chrome snapshots skip redundant writes.
 - The menu bar now shows remaining Antigravity Gemini quota. Double Ring and Large Readout show the five-hour window (5H) on the left and the weekly window (7D) on the right. Compact Ring shows weekly quota only.
 - Codex quota remains available in the hover card. The Antigravity badge continues updating if a Codex refresh fails. A missing window displays `--`, and an exhausted window displays `0`.

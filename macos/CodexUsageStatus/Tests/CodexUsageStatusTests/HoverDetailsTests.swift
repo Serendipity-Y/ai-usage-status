@@ -96,3 +96,18 @@ private func usage(_ resetJSON: String = "") throws -> UsageSummary {
         #expect(window.remainingPercent == remaining)
     }
 }
+
+@Test func codexRejectsOtherIdentitiesAndAcceptsLegacyData() throws {
+    let window: [String: Any] = ["secondary": ["usedPercent": 23, "windowDurationMins": 10080]]
+    let other = window.merging(["limitId": "other"]) { _, new in new }
+    func read(_ data: [String: Any]) throws -> UsageSummary {
+        try UsageSummary(response: JSONDecoder().decode(RateLimitsResponse.self, from: JSONSerialization.data(withJSONObject: data)))
+    }
+    for data: [String: Any] in [["rateLimitsByLimitId": ["other": other]], ["rateLimits": other],
+                                 ["rateLimitsByLimitId": ["codex": other]],
+                                 ["rateLimitsByLimitId": ["other": other], "rateLimits": window]] {
+        #expect(try read(data).menuTitle == "5h -- 7d --")
+    }
+    #expect(try read(["rateLimits": window]).weekly.remainingPercent == 77)
+    #expect(try read(["rateLimitsByLimitId": ["other": other, "codex": window]]).weekly.remainingPercent == 77)
+}

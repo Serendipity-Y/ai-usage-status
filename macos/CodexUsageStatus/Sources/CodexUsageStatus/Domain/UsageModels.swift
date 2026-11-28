@@ -30,14 +30,19 @@ struct UsageSummary: Sendable {
     let availableResetCount: Int?
 
     init(response: RateLimitsResponse) throws {
-        let snapshot = response.rateLimitsByLimitId?["codex"]
-            ?? response.rateLimits
-            ?? response.rateLimitsByLimitId?.values.first
-
-        guard let snapshot else {
-            throw FetchError.invalidOutput
+        let byID = response.rateLimitsByLimitId ?? [:]
+        let identified = byID["codex"].flatMap { $0.limitId == nil || $0.limitId == "codex" ? $0 : nil }
+        let legacy = response.rateLimits.flatMap {
+            $0.limitId == "codex" || ($0.limitId == nil && byID.isEmpty) ? $0 : nil
         }
-
+        guard let snapshot = identified ?? legacy else {
+            guard !byID.isEmpty || response.rateLimits != nil else { throw FetchError.invalidOutput }
+            fiveHour = UsageWindow(nil)
+            weekly = UsageWindow(nil)
+            planType = nil
+            availableResetCount = nil
+            return
+        }
         guard snapshot.primary != nil || snapshot.secondary != nil else { throw FetchError.invalidOutput }
         let windows = [snapshot.primary, snapshot.secondary].compactMap { $0 }
         func resolve(minutes: Double, legacy: RateLimitWindow?) -> UsageWindow {

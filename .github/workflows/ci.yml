@@ -15,6 +15,7 @@ jobs:
           node-version: 24
       - run: npm test
       - run: swift test --package-path macos/CodexUsageStatus
+      - run: python3 integrations/gemini-chat/test_native_host.py
       - run: python3 lifecycle/test_lifecycle.py
       - name: Build macOS app (arm64)
         run: npm run build:macos

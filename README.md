@@ -43,6 +43,21 @@ cd ai-usage-status
 npm run install:macos
 ```
 
+**首次配置 Antigravity 双环。** 安装 [CodexBar CLI](https://github.com/steipete/CodexBar)，并登录本机 Antigravity。先用 CLI 确认它能读取你的额度（已验证 CodexBar 0.85.0）。
+
+```sh
+codexbar usage --provider antigravity --format json --no-color
+```
+
+应用会自动发现位于 `/opt/homebrew/bin/codexbar` 或 `/usr/local/bin/codexbar` 的 CLI。若 CLI 安装在其他目录，可在首次配置时建立链接：
+
+```sh
+mkdir -p "$HOME/Library/Application Support/CodexUsageStatus/bin"
+ln -s "$(command -v codexbar)" "$HOME/Library/Application Support/CodexUsageStatus/bin/codexbar"
+```
+
+点击菜单栏的 **Refresh** 后，左环对应 Gemini 5H，右环对应 Gemini 7D。内置适配器只读取 Antigravity，无需签到配置。已有自定义采集脚本的用户继续使用原数据源。
+
 常用开发与校验命令：
 
 ```sh
@@ -90,6 +105,7 @@ python3 lifecycle/install.py install \
 2. 环境变量 `GEMINI_QUOTA_FILE`（指向本机 JSON 文件）
 3. 默认本地快照文件：`~/Library/Application Support/CodexUsageStatus/gemini-quota.json`
 4. 默认本地采集脚本：`~/Library/Application Support/CodexUsageStatus/bin/fetch-gemini-quota.py`
+5. 内置 Antigravity 适配器依次查找 `ANTIGRAVITY_CODEXBAR_BIN`、用户的 `CodexUsageStatus/bin/codexbar` 及上述两个 Homebrew 路径。
 
 菜单栏通过以下两个 `id` 识别 Antigravity 的每周和 5 小时额度。
 
@@ -122,6 +138,7 @@ An unofficial native macOS menu-bar companion for viewing **Codex**, **Gemini / 
 
 - **2×2 hover card**: Top-left shows Gemini chat 5-hour and weekly limits (synced silently via the optional Chrome extension bridge in `integrations/gemini-chat/`, with macOS Accessibility fallback); bottom-left shows Antigravity quotas; top-right shows Codex 5-hour / weekly windows and reset credits; bottom-right shows tabular credit/USD balances for WorkBuddy / Trae / Qoder / AgentRouter.
 - The menu bar shows Antigravity Gemini quota remaining. Compact Ring shows the weekly window. Double Ring and Large Readout show five-hour on the left and weekly on the right.
+- **First-time Antigravity setup**: Sign in to Antigravity and install [CodexBar CLI](https://github.com/steipete/CodexBar). Confirm that `codexbar usage --provider antigravity --format json --no-color` returns quota windows. The app discovers the CLI at standard Homebrew paths or via a symlink in the user’s `Application Support/CodexUsageStatus/bin` directory. Custom adapters retain priority.
 - **Display styles**: Switch between **Compact Ring (7D)** (`30pt` notch-friendly single ring), **Double Ring**, and **Large Readout**.
 - **Privacy & safety**: Codex usage comes exclusively from local `codex app-server` (`account/rateLimits/read`). The app itself never reads credential files, browser cookies, Keychain items, or OAuth tokens. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 - **Multi-host lifecycle helper**: Optional per-user listener (`lifecycle/install.py`) keeps the badge running while any configured host app (`ChatGPT.app`, `Gemini.app`, `Antigravity.app`) is active and quits cleanly once all exit.

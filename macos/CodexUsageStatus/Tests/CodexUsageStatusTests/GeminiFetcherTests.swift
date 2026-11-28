@@ -223,3 +223,34 @@ private func withTempDir(_ body: (URL) throws -> Void) throws {
     state.fail(.notConfigured)
     #expect(state.usage == nil && state.quotaReadAt == nil)
 }
+
+@Test func badgeOnlyAdvancesForMatchingWindowsInOrder() throws {
+    func report(_ id: String, _ remaining: Int, _ time: Int, _ balance: String) throws -> GeminiUsageSummary {
+        let data = try JSONSerialization.data(withJSONObject: ["updatedAt": time, "buckets": [
+            ["id": id, "label": "每周", "remainingPercent": remaining]],
+            "extraProviders": [["id": "qoder", "name": "Qoder", "valueText": balance]]])
+        return try GeminiUsageFetcher.decodeSummary(from: data)
+    }
+    var state = GeminiRefreshState()
+    let weekly = "antigravity-quota-summary-gemini-weekly"
+    state.accept(try report(weekly, 16, 200, "A"))
+    state.accept(try report("secondary", 92, 300, "B"))
+    #expect(state.usage?.antigravityWeeklyRemaining == 16 && state.error == .quotaNotReported)
+    #expect(state.usage?.extraProviders.first?.valueText == "B")
+    state.accept(try report(weekly, 88, 100, "A"))
+    #expect(state.quotaReadAt == Date(timeIntervalSince1970: 200) && state.usage?.antigravityWeeklyRemaining == 16)
+    state.accept(try report(weekly, 100, 400, "C"))
+    #expect(state.error == nil && state.usage?.antigravityWeeklyRemaining == 100)
+    #expect(state.usage?.antigravityFiveHourRemaining == nil)
+}
+
+@Test func builtInAdapterUsesOnlyLiveAntigravityNamedWindows() throws {
+    let raw = #"[{"provider":"antigravity","source":"cli","usage":{"extraRateWindows":[{"id":"antigravity-quota-summary-gemini-weekly","window":{"usedPercent":4}},{"id":"antigravity-quota-summary-gemini-5h","usageKnown":false,"window":{"usedPercent":0}},{"id":"secondary","window":{"usedPercent":0}}]}}]"#
+    let quota = try AntigravityCLI.decode(Data(raw.utf8))
+    #expect(quota.antigravityWeeklyRemaining == 96 && quota.antigravityFiveHourRemaining == nil)
+    #expect(quota.buckets.count == 2)
+    for invalid in [raw.replacingOccurrences(of: "\"cli\"", with: "\"offline\""),
+                    raw.replacingOccurrences(of: "\"antigravity\"", with: "\"gemini\"")] {
+        #expect(throws: GeminiFetchError.invalidOutput) { try AntigravityCLI.decode(Data(invalid.utf8)) }
+    }
+}

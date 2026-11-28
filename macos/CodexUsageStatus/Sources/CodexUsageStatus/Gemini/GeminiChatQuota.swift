@@ -172,6 +172,12 @@ struct GeminiChatQuota: Codable, Equatable, Sendable {
         }
     }
 
+    func canReplace(_ previous: Self?, now: Date = Date()) -> Bool {
+        guard Self.acceptsTimestamp(readAt, now: now) else { return false }
+        guard let previous, Self.acceptsTimestamp(previous.readAt, now: now) else { return true }
+        return previous.source != source || readAt >= previous.readAt
+    }
+
     func save(to url: URL = Self.cacheURL) throws {
         if isFromChrome, let data = try? Data(contentsOf: url),
            let saved = try? JSONDecoder().decode(Self.self, from: data),

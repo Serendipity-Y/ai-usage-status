@@ -3,12 +3,14 @@ import Foundation
 
 enum GeminiQuotaSource: Equatable, Sendable {
     case command(String)
+    case antigravityCLI(String)
     case file(String)
     case none
 
     var displayDescription: String {
         switch self {
         case .command(let path): return "Local command: \(path)"
+        case .antigravityCLI(let path): return "Antigravity via CodexBar: \(path)"
         case .file(let path): return "Local JSON file: \(path)"
         case .none: return "Not configured (optional JSON file at \(AppConfig.defaultGeminiQuotaFilePath))"
         }
@@ -36,6 +38,14 @@ enum GeminiUsageFetcher {
         if fileManager.isExecutableFile(atPath: defaultCommand) {
             return .command(defaultCommand)
         }
+        if let binary = environment["ANTIGRAVITY_CODEXBAR_BIN"], !binary.isEmpty {
+            return .antigravityCLI(expandTilde(binary))
+        }
+        let localCLI = URL(fileURLWithPath: defaultCommand).deletingLastPathComponent().appendingPathComponent("codexbar").path
+        let paths = [localCLI, "/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"]
+        if let binary = paths.first(where: fileManager.isExecutableFile(atPath:)) {
+            return .antigravityCLI(binary)
+        }
         return .none
     }
 
@@ -56,6 +66,9 @@ enum GeminiUsageFetcher {
             throw GeminiFetchError.notConfigured
         case .file(let path):
             data = try readFile(atPath: path)
+        case .antigravityCLI(let path):
+            let output = try runCommand(atPath: path, arguments: ["usage", "--provider", "antigravity", "--format", "json", "--no-color"], timeout: timeout)
+            return try AntigravityCLI.decode(output)
         case .command(let path):
             data = try runCommand(atPath: path, timeout: timeout)
         }
@@ -84,13 +97,14 @@ enum GeminiUsageFetcher {
         }
     }
 
-    private static func runCommand(atPath path: String, timeout: DispatchTimeInterval) throws -> Data {
+    private static func runCommand(atPath path: String, arguments: [String] = [], timeout: DispatchTimeInterval) throws -> Data {
         guard FileManager.default.isExecutableFile(atPath: path) else {
             throw GeminiFetchError.commandNotFound(path)
         }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
 
         let output = Pipe()
         let errors = Pipe()

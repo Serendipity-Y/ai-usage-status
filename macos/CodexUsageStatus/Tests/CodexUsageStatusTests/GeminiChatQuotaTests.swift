@@ -136,3 +136,12 @@ import Testing
     try JSONEncoder().encode(future).write(to: saved)
     #expect(GeminiChatQuota.cached(now: now, chromeURL: file, savedURL: saved) == nil)
 }
+
+@Test func lateChromeReadingCannotReplaceANewerReading() {
+    let window = GeminiChatQuota.Window(used: 25, reset: nil)
+    let now = Date()
+    let latest = GeminiChatQuota(current: window, weekly: window, readAt: now, pageUpdate: nil, source: "chrome")
+    let earlier = GeminiChatQuota(current: window, weekly: window, readAt: now.addingTimeInterval(-60), pageUpdate: nil, source: "chrome")
+    #expect(!earlier.canReplace(latest, now: now))
+    #expect(latest.canReplace(earlier, now: now))
+}

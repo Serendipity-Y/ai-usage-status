@@ -134,9 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func showHoverPopover() {
         guard !menuIsOpen, let button = statusItem.button, button.window != nil else { return }
         if hasGeminiChat, case .fresh(let latest) = GeminiChatQuota.readChromeReport() {
-            chatQuota = latest
-            chatUnavailable = nil
-            try? latest.save()
+            acceptChatSnapshot(latest)
         }
         updateHoverCard()
         hoverPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -268,13 +266,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         chatSchedule.refresh()
     }
 
+    private func acceptChatSnapshot(_ incoming: GeminiChatQuota) {
+        guard incoming.canReplace(chatQuota) else { return }
+        chatQuota = incoming
+        chatUnavailable = nil
+        try? incoming.save()
+    }
+
     private func refreshChat() async -> Bool {
         let reading = await Task.detached(priority: .utility) { GeminiChatPane.readBest() }.value
         switch reading {
         case .snapshot(let snapshot):
-            chatQuota = snapshot
-            chatUnavailable = nil
-            try? snapshot.save()
+            acceptChatSnapshot(snapshot)
         case .unavailable(let reason):
             if let snapshot = chatQuota, !GeminiChatQuota.acceptsTimestamp(snapshot.readAt) { chatQuota = nil }
             if let cached = GeminiChatQuota.cached(),
